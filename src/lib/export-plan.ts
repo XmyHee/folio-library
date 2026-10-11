@@ -3,7 +3,7 @@ import { noteAuthors, noteTitle, unknownNoteVariables, renderBookNote } from "./
 import { needsReview, reviewReasons } from "./review";
 
 export type ExportOptions = { includeDuplicates: boolean; includeNotes?: boolean; noteTemplate?: string; excludePending?: boolean };
-export type ExportEntry = { book: DerivedBook; path?: string; notePath?: string; originalPath?: string; skipReason?: string };
+export type ExportEntry = { book: DerivedBook; path?: string; notePath?: string; originalPath?: string; sourceFiles?: {path:string;file:Blob;hash?:string}[]; skipReason?: string };
 export function safeExportName(name: string): string {
   let safe = name.normalize("NFC").replace(/[<>:"/\\|?*\x00-\x1f\x7f]/g, "_").replace(/[. ]+$/, "").trim();
   if (!safe || /^\.+$/.test(safe)) safe = "未命名";
@@ -24,18 +24,27 @@ export function createExportPlan(books: DerivedBook[], options: ExportOptions) {
   }
   const entries: ExportEntry[] = books.map((book, index) => {
     if (options.excludePending && needsReview(book)) return { book, skipReason: "本次排除待审核书籍" };
+    if (book.markdownSource && book.status !== "ok") return {book,skipReason:"Markdown 转换失败，请重新转换后导出"};
     if (book.kind !== "pdf" && book.kind !== "epub") return { book, skipReason: "不支持的文件格式" };
     const duplicate = book.role === "duplicate" || book.role === "identical";
     if (duplicate && !options.includeDuplicates) return { book, skipReason: "本次不包含重复副本" };
-    const path = duplicate ? reserve(`Originals/Duplicates/${index + 1}-${safeExportName(book.id)}/`, book.originalName) : reserve("Library/", book.proposedName);
+    const path = duplicate ? reserve(`Originals/Duplicates/${index + 1}-${safeExportName(book.id)}/`, book.markdownSource ? book.proposedName : book.originalName) : reserve("Library/", book.proposedName);
     const notePath = !duplicate && options.includeNotes ? reserve("Library/Notes/", `${noteTitle(book)}${noteAuthors(book).length ? " - " + noteAuthors(book).join(" & ") : ""}.md`) : undefined;
-    const originalPath = !duplicate && book.coverPreference === "title" ? reserve(`Originals/${index + 1}-${safeExportName(book.id)}/`, book.originalName) : undefined;
-    return { book, path, notePath, originalPath };
+    let originalPath = !book.markdownSource && !duplicate && book.coverPreference === "title" ? reserve(`Originals/${index + 1}-${safeExportName(book.id)}/`, book.originalName) : undefined;
+    const sourceFiles:NonNullable<ExportEntry["sourceFiles"]>=[];
+    if(book.markdownSource){
+      const source=book.markdownSource,root=`Originals/${index+1}-${safeExportName(book.id)}/`;
+      const original=(relative:string)=>{const parts=relative.replace(/\\/g,"/").split("/");if(parts.some(part=>part===".."))throw new Error("原件路径不能越过导出目录");const name=parts.pop()!;return reserve(root+parts.filter(Boolean).map(safeExportName).join("/")+(parts.filter(Boolean).length?"/":""),name);};
+      originalPath=original(source.path);
+      sourceFiles.push({path:originalPath,file:source.file,hash:source.hash},...source.assets.map(asset=>({path:original(asset.path),file:asset.file,hash:asset.hash})));
+      if(!duplicate&&book.coverPreference==="title")sourceFiles.push({path:reserve(root,"before-cover.pdf"),file:book.file});
+    }
+    return { book, path, notePath, originalPath, ...(sourceFiles.length?{sourceFiles}: {}) };
   });
   const included = entries.filter(entry => entry.path);
   const issues = included.map(entry => {
     const reasons = [...reviewReasons(entry.book)];
-    if (entry.originalPath && !entry.book.titleCoverBlob) reasons.push("生成封面缺失，请重新生成或恢复原文首页");
+    if (entry.book.coverPreference === "title" && !entry.book.titleCoverBlob) reasons.push("生成封面缺失，请重新生成或恢复原文首页");
     if (!(entry.book.file instanceof Blob)) reasons.push("原文件不可用");
     return { id: entry.book.id, name: entry.book.originalName, reasons };
   }).filter(issue => issue.reasons.length);
@@ -47,7 +56,7 @@ export function createExportPlan(books: DerivedBook[], options: ExportOptions) {
   }
   return { entries, blockers, adjustedNames,
     summary: { selected: books.length, files: included.length, notes: included.filter(e => e.notePath).length, duplicates: included.filter(e => e.path!.startsWith("Originals/Duplicates/")).length,
-      generatedCovers: included.filter(e => e.originalPath).length, skipped: entries.length - included.length, pending: included.filter(e => needsReview(e.book)).length, sourceBytes: included.reduce((sum,e)=>sum+e.book.size,0) },
+      generatedCovers: included.filter(e => e.book.coverPreference === "title" && !e.path?.startsWith("Originals/Duplicates/")).length, skipped: entries.length - included.length, pending: included.filter(e => needsReview(e.book)).length, sourceBytes: included.reduce((sum,e)=>sum+e.book.size,0) },
     issues,
   };
 }

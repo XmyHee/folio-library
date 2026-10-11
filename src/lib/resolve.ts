@@ -23,7 +23,7 @@ export function metaFromFilename(originalName: string): {
   title: string;
   authors: string[];
 } {
-  let stem = originalName.replace(/\.(epub|pdf)$/i, "");
+  let stem = originalName.replace(/\.(epub|pdf|md|markdown)$/i, "");
   stem = stripZlibTag(stem);
   stem = stem.replace(/[\[\(]z-?lib[^\])]*[\]\)]/gi, " ");
   stem = collapseWs(stem);
@@ -99,6 +99,13 @@ export function resolveBookMeta(
     authors: book.manualMetadata.authors,
     publisher: book.publisher,
     source: "manual",
+    isbn,
+  };
+  if (book.markdownSource) return {
+    title: book.rawTitle || metaFromFilename(book.originalName).title,
+    authors: book.authors,
+    publisher: book.publisher,
+    source: "markdown",
     isbn,
   };
   const filename = metaFromFilename(book.originalName);

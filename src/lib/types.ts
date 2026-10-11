@@ -3,11 +3,18 @@ export type NamingMode = 1 | 2;
 export type DedupeRole = "unique" | "keep" | "duplicate" | "identical";
 export type DedupeKind = "hash" | "isbn" | "title" | "fuzzy";
 /** Where the final display title/author came from */
-export type MetaSource = "manual" | "openlibrary" | "epub" | "pdf" | "filename" | "none";
+export type MetaSource = "manual" | "markdown" | "openlibrary" | "epub" | "pdf" | "filename" | "none";
 
 export type ParsedBook = {
   id: string;
   file: File;
+  /** Markdown source and local assets remain separate from the generated working PDF. */
+  markdownSource?: {
+    file: File; path: string; hash: string; identityVersion: 1;
+    assets: import("./markdown/assets").MarkdownAsset[];
+    settings: import("./markdown/model").MarkdownSettings;
+    rendererVersion: 1;
+  };
   originalName: string;
   relativePath: string;
   size: number;

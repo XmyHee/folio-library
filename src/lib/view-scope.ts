@@ -15,3 +15,13 @@ export function reviewNeighbors(books: DerivedBook[], selectedId: string | undef
   const position = index >= 0 ? index : Math.min(lastPosition, books.length);
   return { index, previous: books[position - 1], next: books[index >= 0 ? index + 1 : position] };
 }
+
+/** Counts and group visibility share the same view rules as batch actions. */
+export function viewSummary(filtered: DerivedBook[], books: DerivedBook[], groups: DuplicateGroup[]) {
+  const visibleIds = new Set(filtered.map(book => book.id));
+  return {
+    renameBooks: currentViewBooks(filtered, books, groups, "rename"),
+    duplicateBooks: books.filter(book => book.groupId !== null),
+    visibleGroups: groups.filter(group => group.bookIds.some(id => visibleIds.has(id))),
+  };
+}

@@ -54,7 +54,14 @@ export async function loadLibrary(): Promise<LibrarySnapshot | null> {
           const asset = byId.get(record.id);
           if (!asset) { reject(new Error("本地书籍文件不完整，已保留原数据")); return; }
           const { id: _id, ...blobs } = asset;
-          byBook.set(record.id, { ...record, ...blobs });
+          const {markdownFile, markdownAssets, ...bookBlobs} = blobs;
+          if (record.markdownSource && (!(markdownFile instanceof Blob) || !Array.isArray(markdownAssets)
+            || markdownAssets.length !== record.markdownSource.assets.length
+            || markdownAssets.some((item: import("./markdown/assets").MarkdownAsset, index: number) => !(item.file instanceof Blob) || item.path !== record.markdownSource.assets[index]?.path || item.hash !== record.markdownSource.assets[index]?.hash))) {
+            reject(new Error("Markdown 原件或附件不完整，已保留原数据")); return;
+          }
+          byBook.set(record.id, { ...record, ...bookBlobs,
+            ...(record.markdownSource ? {markdownSource:{...record.markdownSource,file:markdownFile,assets:markdownAssets}} : {}) });
           metadataCache.set(record.id, JSON.stringify(record));
           assetCache.set(record.id, blobs);
         }
@@ -113,7 +120,9 @@ export async function loadLibrary(): Promise<LibrarySnapshot | null> {
   }
 }
 
-type Assets = Pick<ParsedBook, "file" | "coverBlob" | "titleCoverBlob">;
+type Assets = Pick<ParsedBook, "file" | "coverBlob" | "titleCoverBlob"> & {
+  markdownFile?: File; markdownAssets?: import("./markdown/assets").MarkdownAsset[];
+};
 let revision = 0;
 const metadataCache = new Map<string, string>();
 const assetCache = new Map<string, Assets>();
@@ -136,13 +145,15 @@ export async function saveLibrary(snapshot: LibrarySnapshot): Promise<void> {
         const active = new Set<string>();
         const all = [...(snapshot.clearedLibrary?.books ?? []), ...snapshot.books];
         for (const book of all) {
-          const { file, coverBlob, titleCoverBlob, coverUrl: _url, titleCoverUrl: _titleUrl, ...record } = book;
+          const { file, coverBlob, titleCoverBlob, coverUrl: _url, titleCoverUrl: _titleUrl, markdownSource, ...fields } = book;
+          const record = {...fields, ...(markdownSource ? {markdownSource:{...markdownSource,file:undefined,assets:markdownSource.assets.map(({file:_asset,...asset})=>asset)}} : {})};
           const serialized = JSON.stringify(record);
           const previous = assetCache.get(book.id);
-          const blobs = { file, coverBlob, titleCoverBlob };
+          const blobs:Assets = { file, coverBlob, titleCoverBlob, ...(markdownSource ? {markdownFile:markdownSource.file,markdownAssets:markdownSource.assets} : {}) };
           active.add(book.id); nextMetadata.set(book.id, serialized); nextAssets.set(book.id, blobs);
           if (metadataCache.get(book.id) !== serialized) tx.objectStore("books").put(record, book.id);
-          if (!previous || previous.file !== file || previous.coverBlob !== coverBlob || previous.titleCoverBlob !== titleCoverBlob) tx.objectStore("assets").put({ id: book.id, ...blobs }, book.id);
+          if (!previous || previous.file !== file || previous.coverBlob !== coverBlob || previous.titleCoverBlob !== titleCoverBlob
+            || previous.markdownFile !== blobs.markdownFile || previous.markdownAssets !== blobs.markdownAssets) tx.objectStore("assets").put({ id: book.id, ...blobs }, book.id);
         }
         const keys = tx.objectStore("books").getAllKeys();
         keys.onsuccess = () => { for (const key of keys.result) if (!active.has(String(key))) { tx.objectStore("books").delete(key); tx.objectStore("assets").delete(key); } };

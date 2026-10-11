@@ -7,6 +7,7 @@ export function reviewReasons(book: DerivedBook): string[] {
   else if (/^(?:arxiv[:\s]*)?\d{4}\.\d{4,5}(?:v\d+)?$/i.test(title)) reasons.push("书名仍为论文编号");
   if (!(book.resolvedAuthors ?? book.authors).some(name => name.trim() && !/^(?:unknown|anonymous|作者待确认)$/i.test(name.trim()))) reasons.push("缺少作者");
   if (book.status === "error") reasons.push("文件解析失败");
+  if (book.markdownSource && book.warnings?.length) reasons.push("Markdown 转换提示待核对");
   if (!book.manualMetadata && book.warnings?.some(warning => /冲突|不同|不一致/.test(warning))) reasons.push("识别信息冲突");
   return reasons;
 }

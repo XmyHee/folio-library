@@ -1,10 +1,8 @@
 const fs = require('node:fs');
 const assert = require('node:assert/strict');
-const source = fs.readFileSync('src/App.tsx', 'utf8');
 const ts = require('typescript');
-const start = source.indexOf('  async function ingest(');
-const end = source.indexOf('  function clearAll()', start);
-const functions = 'const storageReady = true; const taskController = {current:null};\n' + ts.transpileModule(source.slice(start, end), {compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText;
+require.extensions['.ts']=(m,p)=>m._compile(ts.transpileModule(fs.readFileSync(p,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,p);
+const {createImportCommands}=require('./src/commands/import.ts');
 let books = [{id:'first', coverUrl:'blob:first'}];
 let catalog = new Map([['old',{title:'Old'}]]);
 let overrides = {group:'first'};
@@ -13,9 +11,11 @@ let report = {failed:1}, scope = 'failed', reviewOpen = true;
 const importingRef = {current:false};
 const update = (old, value) => typeof value === 'function' ? value(old) : value;
 const noop = () => {};
-const create = new Function('importingRef','parseEpubBatch','useOnlineMeta','primaryIsbn','lookupIsbnBatch','setBooks','setOlByIsbn','setKeepOverrides','setSelected','setQuery','setBusy','setError','setOlProgress','setProgress','setTab','revokeCovers','getBooks','setExportReport','setExportScope','setShowExportReview',
- functions.replace('revokeCovers(books)', 'revokeCovers(getBooks())') + '; return {ingest};');
-const app = create(importingRef, async files => {parses++; await Promise.resolve(); if(fail) throw Error('failed'); return files;}, true,()=>'',async()=>new Map([['new',{title:'New'}]]), v=>books=update(books,v),v=>catalog=update(catalog,v),v=>overrides=v,noop,noop,noop,noop,noop,noop,noop,items=>releases+=items.length,()=>books,v=>report=v,v=>scope=v,v=>reviewOpen=v);
+const app = createImportCommands(()=>({storageReady:true,taskController:{current:null},importingRef,
+ parseEpubBatch:async files=>{parses++;await Promise.resolve();if(fail)throw Error('failed');return files;},
+ useOnlineMeta:true,primaryIsbn:()=>'',lookupIsbnBatch:async()=>new Map([['new',{title:'New'}]]),
+ setBooks:v=>books=update(books,v),setOlByIsbn:v=>catalog=update(catalog,v),setLookupResults:noop,
+ setSelected:noop,setQuery:noop,setBusy:noop,setError:noop,setOlProgress:noop,setProgress:noop,setTab:noop}));
 (async()=>{
  await app.ingest([{id:'second',isbn:'new'}]);
  assert.deepEqual(books.map(b=>b.id),['first','second']);

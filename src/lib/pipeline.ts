@@ -298,7 +298,7 @@ export function runPipeline(
       toIsolate: derived.filter((b) => b.role === "duplicate" || b.role === "identical").length,
       exactCopies: derived.filter((b) => b.role === "identical").length,
       fromOpenLibrary: derived.filter((b) => b.metaSource === "openlibrary").length,
-      fromInternal: derived.filter((b) => b.metaSource === "epub" || b.metaSource === "pdf").length,
+      fromInternal: derived.filter((b) => b.metaSource === "epub" || b.metaSource === "pdf" || b.metaSource === "markdown").length,
       fromFilename: derived.filter((b) => b.metaSource === "filename").length,
     },
   };

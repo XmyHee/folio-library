@@ -1,6 +1,6 @@
 const assert=require('node:assert/strict'),fs=require('node:fs'),ts=require('typescript');
 require.extensions['.ts']=(m,p)=>m._compile(ts.transpileModule(fs.readFileSync(p,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,esModuleInterop:true}}).outputText,p);
-const {pdfFirstPage}=require('./src/lib/pdf-cover.ts');
+const {pdfFirstPage,readPdfFrontMatter}=require('./src/lib/pdf-cover.ts');
 const {resolveBookMeta}=require('./src/lib/resolve.ts');
 const {runPipeline}=require('./src/lib/pipeline.ts');
 (async()=>{
@@ -22,8 +22,16 @@ const {runPipeline}=require('./src/lib/pipeline.ts');
  assert.equal(resolveBookMeta(book,{olByIsbn:online}).title,metadata.title);
  const english={...book,originalName:'Unscheinbarkeit - Günter Figal.pdf'};
  assert.equal(resolveBookMeta(english).title,book.rawTitle);
- const parser=fs.readFileSync('src/lib/parse.ts','utf8');
- assert.ok(parser.indexOf('await pdfFirstPage(doc)')<parser.indexOf('const meta = await doc.getMetadata'));
- assert.ok(!parser.includes('file.size <= 60 * 1024 * 1024'));
+ const events=[];
+ const large={...book,size:100*1024*1024};
+ const doc={numPages:30,getMetadata:async()=>{events.push('metadata');throw Error('bad metadata');}};
+ const meta=await readPdfFrontMatter(large,doc,async()=>{events.push('preview');return new Blob(['actual first page']);},()=> 'preview-url');
+ assert.deepEqual(events,['preview','metadata']);assert.equal(meta,null);
+ assert.equal(await large.coverBlob.text(),'actual first page');assert.equal(large.coverUrl,'preview-url');
+ assert.equal(large.spineCount,30);assert.match(large.warnings[0],/元数据读取失败/);
+ const noPreview={...book};
+ const validMeta={info:{Title:'Title'}};
+ assert.equal(await readPdfFrontMatter(noPreview,{numPages:1,getMetadata:async()=>validMeta},async()=>{throw Error('bad preview');}),validMeta);
+ assert.match(noPreview.warnings[0],/首页生成失败/);assert.equal(noPreview.coverBlob,undefined);
  console.log('PASS: first-page render, bounded dimensions, explicit failure, Chinese filename priority and conflict evidence, foreign catalog protection, unchanged foreign title, and preview independent of metadata.');
 })().catch(error=>{console.error(error);process.exitCode=1;});

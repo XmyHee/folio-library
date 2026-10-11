@@ -1,8 +1,10 @@
+import { createImportBatchParser } from "./import-batch";
+import { revokeCovers } from "./book-assets";
 import { applyBookPageMetadata, extractPdfBookMetadata, extractEpubBookMetadata } from "./book-metadata";
 import { applyPaperMetadata, extractPaperMetadata } from "./paper-metadata";
 import { addDocumentCover, paperEvidence } from "./document-cover";
 import { epubFirstPage } from "./epub-first-page";
-import { pdfFirstPage } from "./pdf-cover";
+import { readPdfFrontMatter } from "./pdf-cover";
 import JSZip from "jszip";
 import { detectBookKind } from "./detect";
 import { hasZlibTag, primaryIsbn } from "./normalize";
@@ -250,45 +252,9 @@ export async function parseEpub(file: File): Promise<ParsedBook> {
   }
 }
 
-export async function parseEpubBatch(
-  files: File[],
-  onProgress: (done: number, total: number, current: string) => void,
-  concurrency = 2,
-  signal?: AbortSignal,
-): Promise<ParsedBook[]> {
-  const total = files.length;
-  const results: ParsedBook[] = new Array(total);
-  let next = 0;
-  let done = 0;
+export const parseEpubBatch = createImportBatchParser({ parseBook, addDocumentCover, revokeCovers });
 
-  async function worker() {
-    while (true) {
-      if (signal?.aborted) return;
-      const i = next++;
-      if (i >= total) return;
-      const file = files[i]!;
-      onProgress(done, total, file.name);
-      results[i] = await addDocumentCover(await parseBook(file));
-      done += 1;
-      onProgress(done, total, file.name);
-      await new Promise((r) => setTimeout(r, 0));
-    }
-  }
-
-  const settled = await Promise.allSettled(
-    Array.from({ length: Math.min(4, Math.max(1, Math.floor(concurrency) || 1), Math.max(total, 1)) }, () => worker()),
-  );
-  const failed = settled.find(result => result.status === "rejected");
-  if (failed?.status === "rejected") { revokeCovers(results.filter(Boolean)); throw failed.reason; }
-  return results.filter(Boolean);
-}
-
-export function revokeCovers(books: ParsedBook[]) {
-  for (const book of books) {
-    if (book.coverUrl) URL.revokeObjectURL(book.coverUrl);
-    if (book.titleCoverUrl) URL.revokeObjectURL(book.titleCoverUrl);
-  }
-}
+export { revokeCovers } from "./book-assets";
 
 
 /** Read first chunk of a PDF and pull Info dict Title/Author + ISBN-like strings */
@@ -384,18 +350,7 @@ export async function parsePdf(file: File): Promise<ParsedBook> {
     const data = new Uint8Array(await file.arrayBuffer());
     const doc = await pdfjs.getDocument({ data, useSystemFonts: true }).promise;
     try {
-    base.spineCount = doc.numPages;
-    try {
-      base.coverBlob = await pdfFirstPage(doc);
-      base.coverUrl = URL.createObjectURL(base.coverBlob);
-    } catch (error) {
-      base.warnings = [...(base.warnings ?? []), "PDF 首页生成失败：" + String(error)];
-    }
-
-    const meta = await doc.getMetadata().catch((error: unknown) => {
-      base.warnings = [...(base.warnings ?? []), "PDF 元数据读取失败：" + String(error)];
-      return null;
-    });
+    const meta = await readPdfFrontMatter(base, doc);
     const info = (meta as { info?: Record<string, string> } | null)?.info;
     const xmp = meta?.metadata;
     if (xmp) {

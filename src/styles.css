@@ -838,3 +838,13 @@ details.detail-section { display: block; }
 @media (max-width: 900px) { .dialog-backdrop { width: 100%; } .dialog { padding: 1rem; } }
 @media (max-width: 900px) { body:has(.detail-open) { overflow: hidden; } }
 .pagination { scroll-margin-top: 5rem; }
+
+/* Markdown print controls stay inside the existing intake flow. */
+.markdown-options { margin: 1rem 0; padding: 1rem 1.25rem; border: 1px solid var(--border); border-radius: 12px; }
+.markdown-options summary { cursor: pointer; font-weight: 600; }
+.markdown-options-grid { border: 0; padding: .75rem 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .9rem; }
+.markdown-options-grid label { display: flex; flex-direction: column; gap: .35rem; min-width: 0; }
+.markdown-options-grid .toggle { flex-direction: row; align-items: center; }
+.markdown-options-grid input:not([type=checkbox]), .markdown-options-grid select, .markdown-options-grid textarea { box-sizing: border-box; width: 100%; }
+.markdown-css { grid-column: 1 / -1; }
+@media(max-width: 640px) { .markdown-options-grid { grid-template-columns: 1fr; } }

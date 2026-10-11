@@ -54,7 +54,7 @@ export function toAuditCsv(books: DerivedBook[]): string {
             ? "完全相同"
             : "唯一";
     const meta =
-      b.metaSource === "manual" ? "人工校正" : b.metaSource === "openlibrary"
+      b.metaSource === "manual" ? "人工校正" : b.metaSource === "markdown" ? "Markdown 元数据" : b.metaSource === "openlibrary"
         ? "在线书目"
         : b.metaSource === "epub"
           ? "EPUB内置"
@@ -147,12 +147,20 @@ export async function buildLibraryZip(books: DerivedBook[], opts: ExportOptions,
       const duplicate = entry.path.startsWith("Originals/Duplicates/");
       const output = duplicate ? source : await (await import("./embed-cover")).embedCover(book);
       const note = entry.notePath ? renderBookNote(book, opts.noteTemplate!, entry.path, entry.notePath) : undefined;
-      const sourceSha256 = await digest(source), outputSha256 = await digest(output);
+      const originals:{path:string;bytes:Uint8Array;hash:string}[]=[];
+      for(const item of entry.sourceFiles??[]){
+        checkCancelled();
+        const bytes=new Uint8Array(await item.file.arrayBuffer()),hash=await digest(bytes);
+        if(item.hash&&hash!==item.hash)throw new Error("Markdown 原件或附件校验不一致："+item.path);
+        originals.push({path:item.path,bytes,hash});
+      }
+      const sourceSha256 = originals.find(item=>item.path===entry.originalPath)?.hash ?? await digest(source), outputSha256 = await digest(output);
       const noteSha256 = note !== undefined ? await digest(new TextEncoder().encode(note)) : undefined;
       checkCancelled();
       // Commit this book only after all its data, note and hashes have been prepared.
       zip.file(entry.path, output);
-      if (entry.originalPath) zip.file(entry.originalPath, source);
+      if (entry.originalPath && !entry.sourceFiles) zip.file(entry.originalPath, source);
+      for(const item of originals)zip.file(item.path,item.bytes);
       if (entry.notePath && note !== undefined) zip.file(entry.notePath, note);
       Object.assign(record, { status: "success", reason: undefined, file: entry.path, note: entry.notePath, original: entry.originalPath, sourceSha256, outputSha256, noteSha256 });
     } catch (error) { record.status = "failed"; record.reason = String(error); }
@@ -162,7 +170,7 @@ export async function buildLibraryZip(books: DerivedBook[], opts: ExportOptions,
   }
   const report: ExportReport = { records, succeeded: records.filter(r => r.status === "success").length, failed: records.filter(r => r.status === "failed").length, skipped: records.filter(r => r.status === "skipped").length };
   zip.file("folio-export-result.csv", toExportResultCsv(report));
-  zip.file("README.md", `# Folio 整理包\n\n成功 ${report.succeeded} 本；失败 ${report.failed} 本；排除 ${report.skipped} 本。\n\n- Library：整理后的书籍；阅读笔记位于 Library/Notes（启用笔记时）。\n- Originals：生成封面前的原文件；保留的重复副本位于 Originals/Duplicates。没有原件时该文件夹为空。\n- folio-export-result.csv：完整书名、作者、实际输出路径、校验值及成功、失败、排除原因。\n\n不导出 JSON 或模板副本。笔记仅按模板填写书目，阅读分析仍待填写。模板加入 {{FILE_LINK}} 可链接书籍；请保持文件夹结构。\n\n重新导出生成新的 ZIP，不覆盖本地笔记。请核对 CSV 及浏览器下载记录。\n`);
+  zip.file("README.md", `# Folio 整理包\n\n成功 ${report.succeeded} 本；失败 ${report.failed} 本；排除 ${report.skipped} 本。\n\n- Library：整理后的书籍；阅读笔记位于 Library/Notes（启用笔记时）。\n- Originals：原始 Markdown 与引用图片，以及生成封面前的原文件；保留的重复副本位于 Originals/Duplicates。没有原件时该文件夹为空。\n- folio-export-result.csv：完整书名、作者、实际输出路径、校验值及成功、失败、排除原因。\n\n不导出 JSON 或模板副本。笔记仅按模板填写书目，阅读分析仍待填写。模板加入 {{FILE_LINK}} 可链接书籍；请保持文件夹结构。\n\n重新导出生成新的 ZIP，不覆盖本地笔记。请核对 CSV 及浏览器下载记录。\n`);
   try {
     let lastZipPercent = -1;
     const blob = await zip.generateAsync({

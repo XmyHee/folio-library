@@ -34,11 +34,9 @@ const transaction=(db,store,action)=>new Promise((resolve,reject)=>{const tx=db.
  const exported=runPipeline([base],1).books;
  let controller=new AbortController();controller.abort();await assert.rejects(()=>buildLibraryZip(exported,{includeDuplicates:true},undefined,controller.signal),/取消/);
  controller=new AbortController();await assert.rejects(()=>buildLibraryZip(exported,{includeDuplicates:true},p=>{if(p.current==='生成 ZIP')controller.abort()},controller.signal),/取消/);
- const originalSource=fs.readFileSync('src/lib/parse.ts','utf8');
- const start=originalSource.indexOf('export async function parseEpubBatch('),end=originalSource.indexOf('\n}',start)+2;
- const compiled=ts.transpileModule(originalSource.slice(start,end).replace('export async','async'),{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText;
+ const {createBookBatchParser}=require('./src/lib/book-batch.ts');
  const importController=new AbortController();let active=0,max=0;
- const parse=new Function('parseBook','addDocumentCover','revokeCovers',compiled+';return parseEpubBatch;')(async file=>{active++;max=Math.max(max,active);await new Promise(r=>setTimeout(r,2));active--;return file},async book=>{importController.abort();return book},()=>{});
+ const parse=createBookBatchParser({parseBook:async file=>{active++;max=Math.max(max,active);await new Promise(r=>setTimeout(r,2));active--;return file},addDocumentCover:async book=>{importController.abort();return book},revokeCovers:()=>{}});
  const partial=await parse(large,()=>{},2,importController.signal);assert.ok(partial.length>=1&&partial.length<=2);assert.ok(max<=2);
  console.log('PASS v1 migration/manual fields/undo, incremental writes, 600-PDF recovery, transaction abort, stale-tab conflict, import partial cancellation and ZIP cancellation before download');
 })().catch(error=>{console.error(error);process.exitCode=1});

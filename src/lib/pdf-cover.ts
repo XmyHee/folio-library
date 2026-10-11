@@ -1,4 +1,25 @@
 import type { PDFDocumentProxy } from "pdfjs-dist";
+import type { ParsedBook } from "./types";
+
+/** Preview errors and metadata errors are independent and remain visible on the source record. */
+export async function readPdfFrontMatter(
+  base: ParsedBook,
+  doc: PDFDocumentProxy,
+  render = pdfFirstPage,
+  createUrl: (blob: Blob) => string = blob => URL.createObjectURL(blob),
+) {
+  base.spineCount = doc.numPages;
+  try {
+    base.coverBlob = await render(doc);
+    base.coverUrl = createUrl(base.coverBlob);
+  } catch (error) {
+    base.warnings = [...(base.warnings ?? []), "PDF 首页生成失败：" + String(error)];
+  }
+  return doc.getMetadata().catch((error: unknown) => {
+    base.warnings = [...(base.warnings ?? []), "PDF 元数据读取失败：" + String(error)];
+    return null;
+  });
+}
 
 /** Render actual first page, independently of metadata and text extraction. */
 export async function pdfFirstPage(doc: PDFDocumentProxy): Promise<Blob> {

@@ -29,12 +29,11 @@ const base = {id:'a',file:new Blob(['original']),hash:'original',rawTitle:'Title
  assert.equal(detailDraftChanged(base,{...draft,coverTitle:'Cover draft'}),true);
 
  // Exercise actual clear/undo handlers with a stateful hook harness.
- const source=fs.readFileSync('src/App.tsx','utf8');
- const handlers=ts.transpileModule(source.slice(source.indexOf('  function clearAll()'),source.indexOf('  async function retryCatalog()')),{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText;
+ const {createLibraryCommands}=require('./src/commands/library.ts');
  const state={books:[base],keepOverrides:{g:'a'},olByIsbn:new Map([['isbn',{title:'Catalog'}]]),exportReport:{succeeded:1},clearedLibrary:undefined,storageReady:true,importingRef:{current:false},exporting:false,busy:false,revokeCovers:()=>{throw Error('original previews revoked before undo window ended')}};
  for(const key of ['Books','KeepOverrides','OlByIsbn','ExportReport','ClearedLibrary']) state['set'+key]=value=>{const field=key[0].toLowerCase()+key.slice(1);state[field]=typeof value==='function'?value(state[field]):value;};
  for(const key of ['Selected','Query','CoverFilter','ReviewFilter','InformationFilter','Tab','Error','LookupResults','LookupSummary','ExportScope','ShowExportReview','ShowCoverBatchReview','ShowClearConfirm'])state['set'+key]=()=>{};
- const actions=new Function('state','with(state){'+handlers+';return {clearAll,undoClear};}')(state);
+ const actions=createLibraryCommands(()=>state);
  actions.clearAll();assert.equal(state.books.length,0);assert.equal(state.clearedLibrary.books[0].id,'a');
  await saveLibrary({version:1,books:state.books,namingMode:1,keepOverrides:state.keepOverrides,olByIsbn:state.olByIsbn,useOnlineMeta:false,includeDuplicates:true,clearedLibrary:state.clearedLibrary});
  const loaded=await loadLibrary();assert.equal(await loaded.clearedLibrary.books[0].file.text(),'original');

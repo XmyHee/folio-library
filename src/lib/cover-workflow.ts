@@ -16,6 +16,7 @@ export function matchesCoverFilter(book: ParsedBook, filter: CoverFilter): boole
 }
 
 export function needsCoverGeneration(book: DerivedBook): boolean {
+  if(book.markdownSource&&book.status!=="ok")return false;
   return lacksCover(book) && (book.role === "unique" || book.role === "keep")
     && book.coverPreference !== "title";
 }
