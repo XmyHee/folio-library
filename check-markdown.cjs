@@ -19,6 +19,7 @@ const sourceFile=(name,bytes,relative=name)=>{const file=new File([bytes],path.b
 const makePdf=async(definition,doc)=>{const regular=path.join(__dirname,'public/fonts/NotoSansSC.ttf'),bold=path.join(__dirname,'public/fonts/NotoSansSC-Bold.ttf');const printer=new Printer({Folio:{normal:regular,bold,italics:regular,bolditalics:bold},Mono:{normal:regular,bold,italics:regular,bolditalics:bold}});return paginateMarkdown(definition,doc,prepared=>new Promise((resolve,reject)=>{const stream=printer.createPdfKitDocument(prepared),chunks=[];stream.on('data',chunk=>chunks.push(chunk));stream.on('error',reject);stream.on('end',()=>resolve(new Blob([Buffer.concat(chunks)],{type:'application/pdf'})));stream.end();}));};
 const minimal=async file=>({id:'pdf',file,kind:'pdf',originalName:file.name,relativePath:file.name,size:file.size,hash:'pdf-bytes',status:'ok',rawTitle:'',authors:[],publisher:'',language:'',identifiers:[],description:'',date:'',subjects:[],series:'',spineCount:1,hasZlibTag:false});
 (async()=>{
+  assert.equal(defaultMarkdownSettings.header,'');assert.equal(installPagination({content:[]},{title:'CLRS 4th Edition: Introduction and Chapters 1-3',authors:[],settings:defaultMarkdownSettings}).header,undefined);
   assert.throws(()=>readMarkdown('---\ntitle: A\ntitle: B\n---\nBody','x.md'),/YAML/);
   assert.throws(()=>readMarkdown('---\ntitle: A\nBody','x.md'),/结束分隔线/);
   assert.throws(()=>readMarkdown('---\ntitle: A\n---\n','x.md'),/正文为空/);

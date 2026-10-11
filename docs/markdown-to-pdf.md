@@ -10,7 +10,7 @@ For relative images, import the containing folder, or select the Markdown and im
 
 The existing import area includes **MD 转 PDF 排版**: reading/compact theme, A4/A5/Letter, portrait/landscape, header/footer, page numbers and custom CSS. Changing these settings does not alter existing books until reconversion. No separate Markdown workspace is introduced.
 
-The first conversion downloads approximately 21 MB of self-hosted Chinese font data, cached by the browser. It requires that the site/font resources be reachable at least once. Browser cache eviction or clearing site data can require a new download. No runtime request to a third-party font service is made. The parser and PDF worker load on demand.
+The first conversion downloads approximately 13 MB of self-hosted Chinese font data, cached by the browser. It requires that the site/font resources be reachable at least once. Browser cache eviction or clearing site data can require a new download. No runtime request to a third-party font service is made. The parser and PDF worker load on demand.
 
 ## Supported content
 
@@ -78,7 +78,7 @@ The book fingerprint is SHA-256 of the versioned `folio-md-source-v1` manifest (
 
 The ZIP still has only `README.md`, `folio-export-result.csv`, `Library/`, `Originals/`. The processed PDF goes under `Library` (duplicate PDFs under `Originals/Duplicates` when enabled). Original Markdown plus referenced image paths go under a per-book directory in `Originals`; generated-cover exports additionally retain the pre-cover PDF there. Each source/asset is verified before the per-book files are added to the ZIP. CSV source hash is the actual MD hash, output hash is the exported PDF hash; the identity fingerprint is separate from both. No JSON file is exported. Failed MD conversions cannot be mislabeled/exported as PDF bytes.
 
-MD limit: 5 MiB, 30,000 block tokens; each bitmap at most 20 MiB/40 million pixels. Markdown batches run serially to bound font/layout memory. The worker has a 90-second layout timeout; Stop terminates it. Already completed batch items remain; incomplete work is not saved as success. Font loading has a 30-second timeout and is retryable.
+MD limit: 5 MiB, 30,000 block tokens; each bitmap at most 20 MiB/40 million pixels. Markdown batches run serially to bound font/layout memory. The worker has a 90-second layout timeout; Stop terminates it. Already completed batch items remain; incomplete work is not saved as success. Font loading has a 120-second timeout and is retryable.
 
 ## Implementation and verification
 
@@ -87,4 +87,6 @@ MD limit: 5 MiB, 30,000 block tokens; each bitmap at most 20 MiB/40 million pixe
 - `commands/markdown`: reconversion using the existing task lock and state owner.
 - `check-markdown.cjs`: actual generated PDF/CJK text/fonts/pages/table headers/links, YAML/CSS/images, source identity, persistence, compact export integrity, failed exports, review/cover preservation and cancellation. Browser worker/picker/download checks complement this suite.
 
-Renderer: pdfmake 0.2.20 ([layout documentation](https://pdfmake.github.io/docs/0.1/document-definition-object/page/)); Markdown: marked 17.0.1; YAML: yaml 2.8.3. Font source: [Google Fonts Noto Sans SC](https://github.com/google/fonts/tree/main/ofl/notosanssc), SIL Open Font License, retained in `public/fonts`. The upstream variable font was instantiated at weights 400 and 700 with fonttools 4.66.1; complete CJK coverage is retained and PDF embedding subsets used glyphs.
+Renderer: pdfmake 0.2.20 ([layout documentation](https://pdfmake.github.io/docs/0.1/document-definition-object/page/)); Markdown: marked 17.0.1; YAML: yaml 2.8.3. Font source: [Google Fonts Noto Sans SC](https://github.com/google/fonts/tree/main/ofl/notosanssc), SIL Open Font License, retained in `public/fonts`. The upstream variable font was instantiated at weights 400 and 700 with fonttools 4.66.1 and losslessly compressed with gzip and decompressed once with the browser native stream API; complete CJK coverage is retained and PDF embedding subsets used glyphs.
+
+The default header is empty; the old automatic `{title}` header preference is migrated to empty. Existing PDFs require reconversion to remove their already rendered headers. Explicit custom/YAML headers remain supported. Font gzip bytes are decompressed once before worker layout; PDF embedding uses the original TTF data.

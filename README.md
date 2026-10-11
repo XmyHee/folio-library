@@ -108,7 +108,7 @@ check-*.cjs / test.cjs       回归与存储验证
 .github/workflows/pages.yml 检查、构建和 GitHub Pages 部署
 ```
 
-模块职责、数据归属和扩展规则见 [架构说明](docs/architecture.md)。React 生命周期与功能命令分别通过公开接口测试，原先依赖 App 函数位置的四项测试已迁移。测试依赖只用于开发，不进入线上应用。MD 在浏览器中自动转为 PDF，支持中文嵌入字体、标题、列表、引用、代码、表格、链接、本地图片、YAML 元数据和页眉页脚。排版设置位于导入区的折叠区域，不设置独立转换入口。支持范围和限制见 [Markdown 转 PDF](docs/markdown-to-pdf.md)，重构过程见 [实施计划](docs/markdown-import-plan.md)。首次转换需从本站加载约 21 MB 字体，随后由浏览器缓存；不上传文档。
+模块职责、数据归属和扩展规则见 [架构说明](docs/architecture.md)。React 生命周期与功能命令分别通过公开接口测试，原先依赖 App 函数位置的四项测试已迁移。测试依赖只用于开发，不进入线上应用。MD 在浏览器中自动转为 PDF，支持中文嵌入字体、标题、列表、引用、代码、表格、链接、本地图片、YAML 元数据和页眉页脚。排版设置位于导入区的折叠区域，不设置独立转换入口。支持范围和限制见 [Markdown 转 PDF](docs/markdown-to-pdf.md)，重构过程见 [实施计划](docs/markdown-import-plan.md)。首次转换需从本站加载约 13 MB 字体，随后由浏览器缓存；不上传文档。
 
 ## 线上部署
 

@@ -4,7 +4,7 @@ export type MarkdownSettings = {
   pageNumbers: boolean; css: string;
 };
 export const defaultMarkdownSettings: MarkdownSettings = {
-  theme: "reading", pageSize: "A4", orientation: "portrait", header: "{title}",
+  theme: "reading", pageSize: "A4", orientation: "portrait", header: "",
   footer: "{page} / {pages}", pageNumbers: true, css: "",
 };
 const object = (value: unknown): Record<string, unknown> => value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};

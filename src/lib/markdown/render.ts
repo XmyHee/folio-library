@@ -5,9 +5,11 @@ import { checkCancelled } from "./assets";
 /** One self-hosted font request per page; failed loads are retryable. No document data is sent. */
 let fontRequest:Promise<ArrayBuffer[]>|undefined;
 async function loadFont(){
-  if(!fontRequest)fontRequest=Promise.all(["NotoSansSC.ttf","NotoSansSC-Bold.ttf"].map(name=>fetch(`${import.meta.env.BASE_URL}fonts/${name}`,{cache:"force-cache",signal:AbortSignal.timeout(30000)}).then(async response=>{
-    if(!response.ok)throw new Error("中文字体加载失败，请联网重试一次");return response.arrayBuffer();
-  }))).catch(error=>{fontRequest=undefined;throw error;});
+  if(!fontRequest)fontRequest=Promise.all(["NotoSansSC.ttf.gz","NotoSansSC-Bold.ttf.gz"].map(name=>fetch(`${import.meta.env.BASE_URL}fonts/${name}`,{cache:"force-cache",signal:AbortSignal.timeout(120000)}).then(async response=>{
+    if(!response.ok)throw new Error("中文字体加载失败，请联网重试一次");
+    const buffer=await response.arrayBuffer(),bytes=new Uint8Array(buffer);
+    return bytes[0]===0x1f&&bytes[1]===0x8b ? new Response(new Blob([buffer]).stream().pipeThrough(new DecompressionStream("gzip"))).arrayBuffer() : buffer;
+  }))).catch(error=>{fontRequest=undefined;throw new Error(error?.name === "TimeoutError" ? "中文字体加载超时，请检查网络后重新转换" : "中文字体加载失败，请检查网络后重新转换");});
   return fontRequest;
 }
 
