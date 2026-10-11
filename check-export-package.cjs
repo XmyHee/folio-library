@@ -1,0 +1,33 @@
+const assert=require('node:assert/strict'),fs=require('node:fs'),ts=require('typescript'),JSZip=require('jszip');
+require('fake-indexeddb/auto');
+require.extensions['.ts']=(m,p)=>m._compile(ts.transpileModule(fs.readFileSync(p,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,esModuleInterop:true}}).outputText,p);
+const {buildLibraryZip}=require('./src/lib/export.ts'),{createExportPlan}=require('./src/lib/export-plan.ts'),{renderBookNote,prepareNoteTemplate}=require('./src/lib/notes.ts'),{defaultNoteTemplate}=require('./src/lib/note-template.ts');
+const {saveLibrary,loadLibrary}=require('./src/lib/storage.ts');
+const book={id:'book1',file:new Blob(['source A']),originalName:'Original - Unknown.pdf',relativePath:'folder/original.pdf',hash:'old-source',size:8,kind:'pdf',status:'ok',rawTitle:'old',resolvedTitle:'Full title: $& # [data] - Subtitle',authors:['Old Author'],resolvedAuthors:['First Author','Second Author'],metaSource:'manual',manualMetadata:{title:'Full title: $& # [data] - Subtitle',authors:['First Author','Second Author']},reviewedMetadataKey:'review-key',identifiers:[],publisher:'A: B',language:'en',date:'',series:'',proposedName:'same.pdf',role:'unique'};
+(async()=>{
+const template=prepareNoteTemplate(defaultNoteTemplate);assert.ok(template.includes('{{TITLE}}'));assert.ok(template.includes('{{AUTHORS}}'));const note=renderBookNote(book,template,'Library/a # [b].pdf');
+const yamlTitle=note.split('\n').find(line=>line.startsWith('书籍书名:'));assert.equal(JSON.parse(yamlTitle.slice(yamlTitle.indexOf(':')+1)),book.resolvedTitle);
+const yamlAuthors=note.split('\n').find(line=>line.startsWith('书籍作者:'));assert.deepEqual(JSON.parse(yamlAuthors.slice(yamlAuthors.indexOf(':')+1)),book.resolvedAuthors);
+assert.ok(!note.includes('书籍文件：'));assert.ok(!note.includes('书籍 ID：'));assert.ok(!note.includes('../Library/'));assert.ok(note.includes('导读精要'));
+const optional=renderBookNote(book,'链接：{{FILE_LINK}}\nID：{{BOOK_ID}}','Library/a # [b].pdf');assert.equal(optional,'链接：[打开书籍](<../Library/a%20%23%20%5Bb%5D.pdf>)\nID：book1');
+assert.equal(renderBookNote(book,'# 保留模板结尾\n自定义内容\n','Library/a.pdf'),'# 保留模板结尾\n自定义内容\n');
+assert.equal(renderBookNote(book,'---\ntitle: "{{TITLE}}"\n---','Library/a.pdf').split('\n')[1],'title: '+JSON.stringify(book.resolvedTitle));
+assert.throws(()=>renderBookNote(book,'{{NO_SUCH_FIELD}}','Library/a.pdf'),/未知变量/);
+const long={...book,id:'long',resolvedTitle:'Very long book '.repeat(60)};const empty={...book,id:'empty',resolvedAuthors:[]};assert.ok(renderBookNote(empty,'---\n作者: {{AUTHORS}}\n---','Library/a.pdf').includes('作者: []'));
+const duplicate={...book,id:'dup',originalName:'../same.pdf',role:'duplicate'},duplicate2={...duplicate,id:'dup2',file:new Blob(['different source'])},bad={...book,id:'bad',coverPreference:'title'},unsupported={...book,id:'other',kind:'other'};
+const books=[book,{...book,id:'book2'},long,duplicate,duplicate2,bad,unsupported];const opts={includeDuplicates:true,includeNotes:true,noteTemplate:template};const plan=createExportPlan(books,opts);assert.equal(plan.summary.notes,4);assert.ok(plan.adjustedNames>0);assert.equal(plan.summary.skipped,1);
+assert.equal(new Set(plan.entries.map(e=>e.path).filter(Boolean)).size,6);assert.ok(plan.entries.filter(e=>e.path).every(e=>!e.path.split('/').includes('..')));assert.ok(plan.entries.find(e=>e.book.id==='long').notePath.split('/').pop().length<=180);
+const progress=[];const built=await buildLibraryZip(books,opts,p=>progress.push(p));assert.equal(built.report.succeeded,5);assert.equal(built.report.failed,1);assert.equal(built.report.skipped,1);assert.equal(built.report.records.find(r=>r.id==='bad').file,undefined);
+const zip=await JSZip.loadAsync(await built.blob.arrayBuffer());for(const r of built.report.records.filter(r=>r.status==='success')){assert.ok(zip.file(r.file));if(r.note)assert.ok(zip.file(r.note));}
+const d1=built.report.records.find(r=>r.id==='dup'),d2=built.report.records.find(r=>r.id==='dup2');assert.equal(await zip.file(d1.file).async('string'),'source A');assert.equal(await zip.file(d2.file).async('string'),'different source');
+assert.deepEqual([...new Set(Object.keys(zip.files).map(path=>path.split('/')[0]))].sort(),['Library','Originals','README.md','folio-export-result.csv'].sort());
+assert.ok(!Object.keys(zip.files).some(path=>path.endsWith('.json')));assert.equal(Object.keys(zip.files).filter(path=>path.endsWith('.csv')).length,1);
+assert.ok(built.report.records.find(r=>r.id==='book1').note.startsWith('Library/Notes/'));
+assert.equal(renderBookNote(book,'{{FILE_LINK}}','Library/a # [b].pdf','Library/Notes/book.md'),'[打开书籍](<../a%20%23%20%5Bb%5D.pdf>)');
+assert.ok(d1.file.startsWith('Originals/Duplicates/'));assert.equal(book.rawTitle,'old');assert.equal(await book.file.text(),'source A');
+assert.ok((await zip.file('folio-export-result.csv').async('string')).includes('Second Author'));
+const without=createExportPlan(books,{includeDuplicates:false,includeNotes:false});assert.equal(without.summary.duplicates,0);assert.equal(without.summary.notes,0);assert.equal(without.summary.skipped,3);assert.ok(progress.some(p=>p.zipPercent===100));
+assert.ok(plan.issues.find(issue=>issue.id==='bad').reasons.some(reason=>reason.includes('生成封面缺失')));
+await saveLibrary({version:1,books:[book],namingMode:1,keepOverrides:{},olByIsbn:new Map(),useOnlineMeta:false,includeDuplicates:true,exportSettings:{noteTemplate:template,includeNotes:true},lastExport:built.report});const restored=await loadLibrary();assert.equal(restored.exportSettings.noteTemplate,template);assert.deepEqual(restored.lastExport,built.report);
+console.log('PASS full title/authors, original template, YAML literals, $ tokens, links, long/same names, duplicate bytes, missing-cover failures, atomic entries, exclusions, compact package and CSV, progress and source preservation');
+})().catch(error=>{console.error(error);process.exitCode=1});

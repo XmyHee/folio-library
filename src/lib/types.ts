@@ -3,7 +3,7 @@ export type NamingMode = 1 | 2;
 export type DedupeRole = "unique" | "keep" | "duplicate" | "identical";
 export type DedupeKind = "hash" | "isbn" | "title" | "fuzzy";
 /** Where the final display title/author came from */
-export type MetaSource = "openlibrary" | "epub" | "pdf" | "filename" | "none";
+export type MetaSource = "manual" | "openlibrary" | "epub" | "pdf" | "filename" | "none";
 
 export type ParsedBook = {
   id: string;
@@ -14,8 +14,12 @@ export type ParsedBook = {
   hash: string;
   status: ParseStatus;
   error?: string;
+  warnings?: string[];
   /** Internal EPUB/PDF raw title (may be empty) */
   rawTitle: string;
+  /** User-reviewed catalog fields; original extraction remains separate. */
+  manualMetadata?: { title: string; authors: string[] };
+  reviewedMetadataKey?: string;
   authors: string[];
   publisher: string;
   language: string;
@@ -25,6 +29,23 @@ export type ParsedBook = {
   subjects: string[];
   series: string;
   coverUrl?: string;
+  coverBlob?: Blob;
+  coverIsFirstPage?: boolean;
+  coverlessConfirmed?: boolean;
+  coverTitle?: string;
+  coverAuthor?: string;
+  coverStyleVersion?: number;
+  coverColor?: string;
+  titleCoverBlob?: Blob;
+  titleCoverUrl?: string;
+  coverPreference?: "original" | "title";
+  paperReasons?: string[];
+  bookPageMetadata?: import("./book-metadata").BookPageMetadata;
+  epubEmbeddedTitle?: string;
+  epubEmbeddedAuthors?: string[];
+  pdfEmbeddedTitle?: string;
+  pdfEmbeddedAuthors?: string[];
+  paperMetadata?: import("./paper-metadata").PaperMetadata;
   spineCount: number;
   hasZlibTag: boolean;
   /** Resolved ISBN-13/10 if any */

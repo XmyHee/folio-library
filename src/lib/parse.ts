@@ -1,4 +1,10 @@
+import { applyBookPageMetadata, extractPdfBookMetadata, extractEpubBookMetadata } from "./book-metadata";
+import { applyPaperMetadata, extractPaperMetadata } from "./paper-metadata";
+import { addDocumentCover, paperEvidence } from "./document-cover";
+import { epubFirstPage } from "./epub-first-page";
+import { pdfFirstPage } from "./pdf-cover";
 import JSZip from "jszip";
+import { detectBookKind } from "./detect";
 import { hasZlibTag, primaryIsbn } from "./normalize";
 import type { ParsedBook } from "./types";
 
@@ -170,6 +176,8 @@ export async function parseEpub(file: File): Promise<ParsedBook> {
     base.subjects = byLocal(opf, "subject").map(textOf).filter(Boolean);
     base.spineCount = byLocal(opf, "itemref").length;
 
+    base.epubEmbeddedTitle = base.rawTitle;
+    base.epubEmbeddedAuthors = [...base.authors];
     const metas = byLocal(opf, "meta");
     for (const meta of metas) {
       const property = attr(meta, "property").toLowerCase();
@@ -186,9 +194,40 @@ export async function parseEpub(file: File): Promise<ParsedBook> {
       if (coverFile) {
         const blob = await coverFile.async("blob");
         const typed = new Blob([blob], { type: guessImageType(coverPath, blob) });
+        base.coverBlob = typed;
         base.coverUrl = URL.createObjectURL(typed);
       }
     }
+
+    if (!base.coverBlob) {
+      const first = byLocal(opf, "itemref")[0];
+      const item = byLocal(opf, "item").find(item => attr(item, "id") === attr(first, "idref"));
+      if (item) try {
+        base.coverBlob = await epubFirstPage(zip, joinPath(opfDir, attr(item, "href")).split("#")[0]!);
+        base.coverUrl = URL.createObjectURL(base.coverBlob);
+        base.coverIsFirstPage = true;
+      } catch (error) { base.warnings = [...(base.warnings ?? []), "EPUB 首页预览失败：" + String(error)]; }
+    }
+    // Read a bounded sample of front matter; never execute EPUB content.
+    let sample = "";
+    let frontPage = 0;
+    for (const reference of byLocal(opf, "itemref").slice(0, 5)) {
+      frontPage++;
+      const item = byLocal(opf, "item").find(item => attr(item, "id") === attr(reference, "idref"));
+      if (!item) continue;
+      const chapter = zip.file(joinPath(opfDir, attr(item, "href")).split("#")[0]!);
+      if (!chapter) continue;
+      try {
+        const markup = (await chapter.async("string")).slice(0, 80000);
+        const front = new DOMParser().parseFromString(markup, "text/html");
+        sample += front.body.textContent ?? "";
+        const found = extractEpubBookMetadata(front, originalName, base.epubEmbeddedTitle || "", frontPage);
+        if (found && (!base.bookPageMetadata || (!base.bookPageMetadata.authors.length && found.authors.length))) applyBookPageMetadata(base, found);
+      } catch (error) {
+        base.warnings = [...(base.warnings ?? []), "论文线索读取失败：" + String(error)];
+      }
+    }
+    base.paperReasons = paperEvidence(sample, base.subjects);
 
     if (!base.rawTitle && base.authors.length === 0) {
       base.status = "error";
@@ -215,6 +254,7 @@ export async function parseEpubBatch(
   files: File[],
   onProgress: (done: number, total: number, current: string) => void,
   concurrency = 2,
+  signal?: AbortSignal,
 ): Promise<ParsedBook[]> {
   const total = files.length;
   const results: ParsedBook[] = new Array(total);
@@ -223,26 +263,30 @@ export async function parseEpubBatch(
 
   async function worker() {
     while (true) {
+      if (signal?.aborted) return;
       const i = next++;
       if (i >= total) return;
       const file = files[i]!;
       onProgress(done, total, file.name);
-      results[i] = await parseBook(file);
+      results[i] = await addDocumentCover(await parseBook(file));
       done += 1;
       onProgress(done, total, file.name);
       await new Promise((r) => setTimeout(r, 0));
     }
   }
 
-  await Promise.all(
-    Array.from({ length: Math.min(concurrency, Math.max(total, 1)) }, () => worker()),
+  const settled = await Promise.allSettled(
+    Array.from({ length: Math.min(4, Math.max(1, Math.floor(concurrency) || 1), Math.max(total, 1)) }, () => worker()),
   );
-  return results;
+  const failed = settled.find(result => result.status === "rejected");
+  if (failed?.status === "rejected") { revokeCovers(results.filter(Boolean)); throw failed.reason; }
+  return results.filter(Boolean);
 }
 
 export function revokeCovers(books: ParsedBook[]) {
   for (const book of books) {
     if (book.coverUrl) URL.revokeObjectURL(book.coverUrl);
+    if (book.titleCoverUrl) URL.revokeObjectURL(book.titleCoverUrl);
   }
 }
 
@@ -339,13 +383,38 @@ export async function parsePdf(file: File): Promise<ParsedBook> {
 
     const data = new Uint8Array(await file.arrayBuffer());
     const doc = await pdfjs.getDocument({ data, useSystemFonts: true }).promise;
+    try {
     base.spineCount = doc.numPages;
+    try {
+      base.coverBlob = await pdfFirstPage(doc);
+      base.coverUrl = URL.createObjectURL(base.coverBlob);
+    } catch (error) {
+      base.warnings = [...(base.warnings ?? []), "PDF 首页生成失败：" + String(error)];
+    }
 
-    const meta = await doc.getMetadata().catch(() => null);
+    const meta = await doc.getMetadata().catch((error: unknown) => {
+      base.warnings = [...(base.warnings ?? []), "PDF 元数据读取失败：" + String(error)];
+      return null;
+    });
     const info = (meta as { info?: Record<string, string> } | null)?.info;
+    const xmp = meta?.metadata;
+    if (xmp) {
+      const value = (key: string) => {
+        const v = xmp.get(key);
+        return Array.isArray(v) ? v.map(String).join("; ") : typeof v === "string" ? v : "";
+      };
+      base.rawTitle = value("dc:title");
+      base.authors = value("dc:creator").split(";").map(v => v.trim()).filter(Boolean);
+      base.publisher = value("dc:publisher");
+      base.language = value("dc:language");
+      base.description = value("dc:description");
+      base.date = value("dc:date");
+      const identifier = value("dc:identifier");
+      if (identifier) base.identifiers.push(identifier);
+    }
     if (info) {
-      if (info.Title) base.rawTitle = String(info.Title).trim();
-      if (info.Author) base.authors = [String(info.Author).trim()].filter(Boolean);
+      if (info.Title && !base.rawTitle) base.rawTitle = String(info.Title).trim();
+      if (info.Author && !base.authors.length) base.authors = [String(info.Author).trim()].filter(Boolean);
       if (info.Subject) base.subjects = [String(info.Subject).trim()].filter(Boolean);
       if (info.Keywords) {
         const kw = String(info.Keywords);
@@ -354,51 +423,49 @@ export async function parsePdf(file: File): Promise<ParsedBook> {
       }
     }
 
+    base.pdfEmbeddedTitle = base.rawTitle;
+    base.pdfEmbeddedAuthors = [...base.authors];
+    let firstPageItems: unknown[] = [];
+    const frontPages: { number: number; items: unknown[] }[] = [];
     // First 5 pages text for ISBN (same idea as rename_pdf_isbn.py)
     const maxPages = Math.min(doc.numPages, 5);
     let text = "";
     for (let i = 1; i <= maxPages; i++) {
+      try {
       const page = await doc.getPage(i);
       const content = await page.getTextContent();
+      if (i === 1) firstPageItems = content.items;
+      frontPages.push({ number: i, items: content.items });
       const pageText = content.items
         .map((it) => ("str" in it ? String((it as { str: string }).str) : ""))
         .join(" ");
       text += pageText + "\n";
+      } catch (error) {
+        base.warnings = [...(base.warnings ?? []), `第 ${i} 页文字读取失败：${String(error)}`];
+      }
     }
 
-    let isbn = findIsbnInText(originalName) || findIsbnInText(text);
+    base.paperReasons = paperEvidence(text, base.subjects);
+    if (base.paperReasons.length) {
+      const paper = extractPaperMetadata(firstPageItems, originalName);
+      if (paper) applyPaperMetadata(base, paper);
+      else base.warnings = [...(base.warnings ?? []), "已发现论文线索，但首页标题作者尚未可靠提取，请人工核对。"];
+    }
+    if (!base.paperMetadata) {
+      const found = extractPdfBookMetadata(frontPages, originalName, base.pdfEmbeddedTitle || "");
+      if (found) applyBookPageMetadata(base, found);
+      if (!base.authors.filter(author => !/^(?:unknown|anonymous)$/i.test(author)).length) base.warnings = [...(base.warnings ?? []), "未从内置书目或前页可靠识别作者，可在详情中核对或补充。"];
+    }
+    const isbn = primaryIsbn(base.identifiers) || findIsbnInText(text) || findIsbnInText(originalName);
     if (isbn) {
       base.identifiers = [...new Set([...base.identifiers, isbn])];
       base.isbn = isbn;
     }
 
-    // Cover: render page 1 thumbnail (skip very large docs)
-    if (doc.numPages >= 1 && file.size <= 60 * 1024 * 1024) {
-      try {
-        const page = await doc.getPage(1);
-        const viewport = page.getViewport({ scale: 0.35 });
-        const canvas = document.createElement("canvas");
-        canvas.width = viewport.width;
-        canvas.height = viewport.height;
-        const ctx = canvas.getContext("2d");
-        if (ctx) {
-          await page.render({ canvasContext: ctx, viewport, canvas } as Parameters<
-            typeof page.render
-          >[0]).promise;
-          const blob = await new Promise<Blob | null>((resolve) =>
-            canvas.toBlob(resolve, "image/jpeg", 0.72),
-          );
-          if (blob && blob.size < 1.5 * 1024 * 1024) {
-            base.coverUrl = URL.createObjectURL(blob);
-          }
-        }
-      } catch {
-        /* cover optional */
-      }
-    }
-
-    await doc.destroy();
     return base;
+    } finally {
+      await doc.destroy();
+    }
   } catch (err) {
     // Fallback: binary scan (no pdf.js)
     try {
@@ -416,6 +483,8 @@ export async function parsePdf(file: File): Promise<ParsedBook> {
         base.identifiers = [isbn];
         base.isbn = isbn;
       }
+      base.status = "error";
+      base.error = "PDF 完整解析失败，仅提取部分元数据：" + (err instanceof Error ? err.message : "未知错误");
       return base;
     } catch {
       return {
@@ -430,11 +499,15 @@ export async function parsePdf(file: File): Promise<ParsedBook> {
 
 
 export async function parseBook(file: File): Promise<ParsedBook> {
-  const name = file.name.toLowerCase();
-  if (name.endsWith(".pdf")) return parsePdf(file);
-  if (name.endsWith(".epub")) {
-    const book = await parseEpub(file);
-    book.kind = "epub";
+  let kind: "pdf" | "epub" | "other" = "other";
+  let detectionError = "";
+  try { kind = await detectBookKind(file); }
+  catch (err) { detectionError = err instanceof Error ? err.message : "文件读取失败"; }
+  if (kind !== "other") {
+    const book = await (kind === "pdf" ? parsePdf(file) : parseEpub(file));
+    if (!file.name.toLowerCase().endsWith("." + kind)) {
+      book.warnings = [...(book.warnings ?? []), "扩展名与实际格式不符，已按内容识别为 " + kind.toUpperCase()];
+    }
     return book;
   }
   // Unsupported — still try filename path later
@@ -444,9 +517,9 @@ export async function parseBook(file: File): Promise<ParsedBook> {
     originalName: file.name,
     relativePath: file.name,
     size: file.size,
-    hash: "unsupported",
+    hash: "",
     status: "error",
-    error: "仅支持 EPUB / PDF",
+    error: detectionError || "未识别为有效 EPUB / PDF；不支持的格式或损坏文件需人工检查",
     rawTitle: "",
     authors: [],
     publisher: "",

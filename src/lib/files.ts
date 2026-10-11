@@ -6,7 +6,7 @@ export function isBookFile(file: File, kind: BookKindFilter = "all"): boolean {
   const isPdf = n.endsWith(".pdf");
   if (kind === "epub") return isEpub;
   if (kind === "pdf") return isPdf;
-  return isEpub || isPdf;
+  return true; // Unified intake: content detection decides support and records failures.
 }
 
 export function isEpubFile(file: File): boolean {

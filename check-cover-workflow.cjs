@@ -1,0 +1,22 @@
+const assert=require('node:assert/strict'),fs=require('node:fs'),ts=require('typescript');
+require.extensions['.ts']=(m,p)=>m._compile(ts.transpileModule(fs.readFileSync(p,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,esModuleInterop:true}}).outputText,p);
+const {lacksCover,matchesCoverFilter,needsCoverGeneration,generateCoverBatch}=require('./src/lib/cover-workflow.ts');
+(async()=>{
+ const source=new Blob(['source']);const pdf={id:'pdf',kind:'pdf',file:source,role:'unique',originalName:'pdf.pdf',paperReasons:['摘要 DOI'],coverUrl:'preview'};
+ assert.equal(lacksCover(pdf),true);assert.equal(needsCoverGeneration(pdf),true);
+ const confirmed={...pdf,coverlessConfirmed:true};assert.equal(needsCoverGeneration(confirmed),true);
+ assert.equal(needsCoverGeneration({...confirmed,role:'duplicate'}),false);
+ assert.equal(needsCoverGeneration({...confirmed,coverPreference:'title'}),false);
+ assert.equal(lacksCover({...pdf,kind:'epub',coverBlob:source}),false);
+ assert.equal(lacksCover({...pdf,kind:'epub',coverIsFirstPage:true}),true);
+ assert.equal(matchesCoverFilter(pdf,'papers'),true);assert.equal(matchesCoverFilter(pdf,'missing'),true);
+ const second={...confirmed,id:'second',originalName:'second.pdf'}, third={...confirmed,id:'third',originalName:'third.pdf'};
+ let concurrent=0,maximum=0;const applied=[];
+ const result=await generateCoverBatch([{...pdf,coverPreference:'title'},confirmed,second,third],async book=>{maximum=Math.max(maximum,++concurrent);await Promise.resolve();concurrent--;if(book.id==='second')throw new Error('broken');return new Blob(['cover'])},(book)=>applied.push(book.id),()=>false,()=>{});
+ assert.equal(maximum,1);assert.deepEqual(applied,['pdf','third']);assert.equal(result.succeeded,2);assert.equal(result.failures.length,1);assert.equal(result.cancelled,false);assert.equal(confirmed.file,source);
+ const cancelled=await generateCoverBatch([confirmed,second],async()=>new Blob(['cover']),()=>{},()=>applied.length>2,()=>{});
+ assert.equal(cancelled.done,2);
+ let stop=false;const stopped=await generateCoverBatch([confirmed,second],async()=>new Blob(['cover']),()=>{stop=true},()=>stop,()=>{});
+ assert.equal(stopped.done,1);assert.equal(stopped.cancelled,true);assert.equal(stopped.total,2);
+ console.log('PASS explicit batch action without redundant PDF confirmation, EPUB evidence, filters, duplicate/generated exclusion, serial work, failure retention and cancellation');
+})().catch(e=>{console.error(e);process.exitCode=1});

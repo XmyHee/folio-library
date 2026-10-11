@@ -1,0 +1,66 @@
+[
+  {
+    "str": "Understanding Deep Learning",
+    "dir": "ltr",
+    "width": 255.69718443000008,
+    "height": 17.215,
+    "transform": [
+      17.215,
+      0,
+      0,
+      17.215,
+      157.848,
+      621.592
+    ],
+    "fontName": "g_d0_f1",
+    "hasEOL": false
+  },
+  {
+    "str": "",
+    "dir": "ltr",
+    "width": 0,
+    "height": 0,
+    "transform": [
+      10.909,
+      0,
+      0,
+      10.909,
+      241.964,
+      570.357
+    ],
+    "fontName": "g_d0_f2",
+    "hasEOL": true
+  },
+  {
+    "str": "Simon J.D. Prince",
+    "dir": "ltr",
+    "width": 87.46842527300007,
+    "height": 10.909,
+    "transform": [
+      10.909,
+      0,
+      0,
+      10.909,
+      241.964,
+      570.357
+    ],
+    "fontName": "g_d0_f2",
+    "hasEOL": true
+  },
+  {
+    "str": "February 8, 2026",
+    "dir": "ltr",
+    "width": 80.51932899999997,
+    "height": 10.909,
+    "transform": [
+      10.909,
+      0,
+      0,
+      10.909,
+      243.61700000000002,
+      542.635
+    ],
+    "fontName": "g_d0_f2",
+    "hasEOL": false
+  }
+]

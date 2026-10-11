@@ -1,0 +1,38 @@
+const fs = require('node:fs');
+const assert = require('node:assert/strict');
+const source = fs.readFileSync('src/App.tsx', 'utf8');
+const ts = require('typescript');
+const start = source.indexOf('  async function ingest(');
+const end = source.indexOf('  function clearAll()', start);
+const functions = 'const storageReady = true; const taskController = {current:null};\n' + ts.transpileModule(source.slice(start, end), {compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText;
+let books = [{id:'first', coverUrl:'blob:first'}];
+let catalog = new Map([['old',{title:'Old'}]]);
+let overrides = {group:'first'};
+let fail = false, parses = 0, releases = 0;
+let report = {failed:1}, scope = 'failed', reviewOpen = true;
+const importingRef = {current:false};
+const update = (old, value) => typeof value === 'function' ? value(old) : value;
+const noop = () => {};
+const create = new Function('importingRef','parseEpubBatch','useOnlineMeta','primaryIsbn','lookupIsbnBatch','setBooks','setOlByIsbn','setKeepOverrides','setSelected','setQuery','setBusy','setError','setOlProgress','setProgress','setTab','revokeCovers','getBooks','setExportReport','setExportScope','setShowExportReview',
+ functions.replace('revokeCovers(books)', 'revokeCovers(getBooks())') + '; return {ingest};');
+const app = create(importingRef, async files => {parses++; await Promise.resolve(); if(fail) throw Error('failed'); return files;}, true,()=>'',async()=>new Map([['new',{title:'New'}]]), v=>books=update(books,v),v=>catalog=update(catalog,v),v=>overrides=v,noop,noop,noop,noop,noop,noop,noop,items=>releases+=items.length,()=>books,v=>report=v,v=>scope=v,v=>reviewOpen=v);
+(async()=>{
+ await app.ingest([{id:'second',isbn:'new'}]);
+ assert.deepEqual(books.map(b=>b.id),['first','second']);
+ assert.equal(books[0].coverUrl,'blob:first');
+ assert.equal(catalog.size,2);
+ assert.equal(overrides.group,'first');
+ assert.equal(releases,0);
+ await app.ingest([{id:'third'}]);
+ assert.equal(books.length,3);
+ fail=true; await app.ingest([{id:'failed'}]);
+ assert.equal(books.length,3);
+ assert.equal(importingRef.current,false);
+ fail=false;
+ const count=parses;
+ await Promise.all([app.ingest([{id:'fourth'}]),app.ingest([{id:'blocked'}])]);
+ assert.equal(parses,count+1);
+ assert.deepEqual(books.map(b=>b.id),['first','second','third','fourth']);
+ await app.ingest([]); assert.equal(books.length,4);
+ console.log('PASS: append imports, catalog merge, retained covers/overrides, failure preservation, overlap guard, empty input. Clear/undo covered by check-phase-one.cjs.');
+})().catch(e=>{console.error(e);process.exitCode=1;});

@@ -1,0 +1,10 @@
+const assert=require('node:assert/strict'),fs=require('node:fs'),ts=require('typescript');
+require.extensions['.ts']=(m,p)=>m._compile(ts.transpileModule(fs.readFileSync(p,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,esModuleInterop:true}}).outputText,p);
+const {extractPdfBookMetadata,applyBookPageMetadata}=require('./src/lib/book-metadata.ts');
+const items=JSON.parse(fs.readFileSync('book-test-fixtures/understanding-items.json','utf8'));
+const found=extractPdfBookMetadata([{number:1,items}], 'UnderstandingDeepLearning_02_09_26_C - Unknown.pdf','');
+assert.equal(found.title,'Understanding Deep Learning');assert.deepEqual(found.authors,['Simon J.D. Prince']);
+const book={rawTitle:'',authors:['Unknown']};applyBookPageMetadata(book,found);assert.equal(book.rawTitle,found.title);assert.deepEqual(book.authors,found.authors);
+assert.equal(extractPdfBookMetadata([{number:1,items}],'Unrelated book.pdf',''),undefined);
+const conflict={rawTitle:'Different title',authors:['Other Author']};applyBookPageMetadata(conflict,found);assert.equal(conflict.rawTitle,'Different title');assert.deepEqual(conflict.authors,['Other Author']);assert.equal(conflict.warnings.length,2);
+console.log('PASS real local PDF title-page, initials, dated filename, unknown author, unrelated-title rejection and metadata conflicts');

@@ -1,103 +1,112 @@
-# 📚 Folio Library
+# Folio Library
 
-> 一个轻量、优雅且现代化的个人数字书坊（支持 **EPUB** 与 **PDF** 双格式），集成本地预处理、自动封面抽取与 GitHub Pages 自动化部署。
+在浏览器中整理 EPUB / PDF 的轻量工具：识别书目、校正命名、比较重复项、补封面，并导出书籍与 Markdown 阅读笔记。
 
-[![Deploy to GitHub Pages](https://github.com/XmyHee/folio-library/actions/workflows/pages.yml/badge.svg?branch=main)](https://github.com/XmyHee/folio-library/actions/workflows/pages.yml)
-![Supported Formats](https://img.shields.io/badge/Formats-EPUB%20%7C%20PDF-blue)
+[在线使用](https://questfrontiers.com/folio-library/) · [源代码](https://github.com/XmyHee/folio-library) · [发布记录](https://github.com/XmyHee/folio-library/actions/workflows/pages.yml)
 
-🌐 **在线演示**：[https://xmyhee.github.io/folio-library/](https://xmyhee.github.io/folio-library/)
+## 使用流程
 
----
+1. 点击“添加书籍”或“添加文件夹”，也可把文件拖入页面任意位置。分批添加会保留已有书籍。
+2. 用“全部书籍 / 待命名 / 去重”查看结果，再按书名、作者、审核状态或封面条件筛选。
+3. 打开书籍详情，修改书名和作者，保存后确认审核。桌面端使用侧栏，“上一本 / 下一本”可连续处理；手机端使用整页详情。未应用的修改可以保存、保留为标签页草稿或放弃。
+4. 按需为无封面书籍、论文和文献生成封面。请先核对候选范围：PDF 首页也可能已是封面，不会仅凭这一条件自动批量改动。
+5. 点击“检查并导出书库与笔记”，核对范围、待审核项、输出路径和模板，再下载 ZIP。
 
-## ✨ 核心特性
+## 书目与审核
 
-- 📖 **多格式兼容**：原生支持 EPUB 与 PDF 双格式电子书。
-- 🖼️ **PDF 智能封面提取**：内置 Python 预处理管道（基于 PyMuPDF），自动将 PDF 第一页高精渲染导出为封面 `.jpg`，彻底解决 PDF 缺乏封面的痛点。
-- 🔍 **元数据自动提取与降级**：优先读取图书内置标签（Title/Author），缺失时自动通过正则表达式从文件名中洗净提取。
-- ⚡ **极速加载体验**：采用构建时（Pre-build）生成静态 `books.json` 架构，前端零时延读取书架，告别运行时大文件解析卡顿。
-- 🚀 **自动化 CI/CD**：部署全流程托管至 GitHub Actions，一键推送（`git push`）自动构建与发布上线。
+- 通过文件内容识别 EPUB / PDF，检查扩展名与实际格式是否一致。
+- 综合内置元数据、前页可选文字和文件名，提取标题、作者、ISBN、语言、出版社、日期与丛书。论文识别支持摘要、arXiv 等线索与多作者排版。
+- 中文文件名与外语书目冲突时保留中文命名，并列出差异。中文命名中的外国作者使用有依据的国籍，不凭姓名猜测；英文书籍不套用此规则。
+- 人工校正优先于自动识别。信息异常与人工审核分别显示：确认审核不代表缺失信息已经补齐；书目变化后需要重新审核。
+- 去重顺序为完整 SHA-256、ISBN、归一化书名作者、严格模糊匹配。不同卷册与不同 ISBN 有保护规则；候选组应人工比较，允许切换保留版本。
+- “纯书名 / 附丛书名”控制建议文件名。工具不直接重命名或覆盖磁盘上的源文件，改动体现在导出包中。
 
----
+## 批量范围与封面
 
-## 📁 目录结构
+每行可勾选。选择当前结果与选择全库是两个独立按钮；“当前结果”包括筛选结果的所有页，不仅是当前页。勾选跨页、跨筛选保留，刷新后重置。
+
+CSV 和批量封面可选择“当前结果 / 勾选书籍”。ZIP 的范围在导出检查中单独确认，可选择全部、当前结果、勾选项或上次失败项，并可排除待审核书籍。
+
+PDF 显示实际第一页；EPUB 显示原封面或可读取的前页。生成封面只使用已有或手动填写的标题与作者，不添加占位文字。PDF 封面适配原页尺寸并置于正文前；EPUB 写入封面资源与阅读顺序。导出时才嵌入，原件另行保留。可以切回原文预览或重新识别，未生成的封面不影响原件。
+
+## 导出包
+
+顶层固定为以下四项，不导出 JSON 或模板副本：
 
 ```text
-folio-library/
-├── .github/
-│   └── workflows/
-│       └── deploy.yml          # GitHub Actions 自动构建与部署工作流
-├── public/
-│   ├── books/                  # [静态资源] 存放原始 .epub 和 .pdf 图书文件
-│   ├── covers/                 # [自动生成] 预处理生成的图书封面图片
-│   └── books.json              # [自动生成] 统一的图书元数据索引
-├── src/                        # 前端源码 (Vite 前端应用)
-├── build_library.py            # 图书预处理脚本（解析元数据并渲染 PDF 封面）
-├── vite.config.js              # Vite 配置文件 (设置 base: '/folio-library/')
-└── package.json
-
+folio-library.zip
+├── README.md
+├── folio-export-result.csv
+├── Library/
+│   ├── 完整书名 - 作者.pdf 或 .epub
+│   └── Notes/完整书名 - 作者.md
+└── Originals/
+    ├── 新增封面前的原件（按书籍分目录）
+    └── Duplicates/保留的重复副本（启用时）
 ```
 
----
+文件夹即使为空也保留。结果 CSV 记录完整书名、作者、书籍 ID、实际路径、审核状态、校验值，以及成功、失败、排除原因。单本失败不伪装为成功，其余成功项可生成 `folio-library-partial.zip`；页面可查看结果并重试失败项。
 
-## 🛠️ 本地开发与使用指南
+Markdown 模板支持：`{{TITLE}}`、`{{AUTHOR}}`、`{{AUTHORS}}`、`{{PUBLISHER}}`、`{{ISBN}}`、`{{LANGUAGE}}`、`{{DATE}}`、`{{SERIES}}`、`{{SUBJECTS}}`、`{{BOOK_ID}}`、`{{SOURCE_PATH}}`、`{{FILE_LINK}}`、`{{REVIEW_STATUS}}`。默认不附加末尾链接或 ID，需要时自行加入模板。模板只填写书目，不自动编造阅读分析。导出新包不会合并或覆盖已经在本地编辑的笔记。
 
-### 1. 环境准备
+## 本地保存与隐私
 
-确保本地已安装 [Node.js](https://nodejs.org/) (v18+) 与 [Python](https://www.python.org/) (3.10+)。
+- 文件解析、命名、封面和导出均在浏览器运行，无需上传书籍文件，无需 Python 后端。
+- ISBN 联网补全向 Google Books / Open Library 发送 ISBN 查询，服务方会收到正常网络请求信息；不发送书籍正文或文件。可在导入前关闭，失败或超时可重试，已完成的结果保留。
+- 书库使用 IndexedDB 保存。书目与文件分开存储，修改书目时不重写未改变的文件。旧版快照首次成功保存时原子迁移，保留 ID、人工校正及撤销记录。
+- 清空需确认，十分钟内可撤销，刷新后仍可恢复；期间新加的书籍保留。撤销窗口不是永久备份。
+- 保存失败会明确提示。多个页面发生更新冲突时拒绝旧页面覆盖，请先导出当前修改，再刷新。不要用多个标签页同时编辑同一书库。
+- 浏览器、用户配置、协议或域名不同，书库不共享；HTTP 与 HTTPS 也属于不同来源。清理网站数据、无痕模式结束或浏览器回收存储可能导致数据丢失。请保留原件和定期导出备份。
 
-安装 Python 预处理依赖：
+## 性能与限制
 
-```bash
-pip install pymupdf
+列表每页最多 40 本，去重每页最多 40 个完整组；分页不改变批量范围。导入 / 联网补全 / ZIP 导出可停止，批量封面也有取消入口。解析与封面在当前文件完成后停止；已完成的导入和封面保留，取消 ZIP 不触发下载。
 
-```
+扫描 PDF 暂无 OCR；加密、损坏、非常规排版或缺失文本可能需要人工校正。自动识别和相似去重不能保证所有书籍均准确。ZIP 仍在内存中构建，大文件或大量书籍请用勾选范围分批导出；分页不降低文件本身的存储与导出内存需求。
 
-安装前端项目依赖：
+开发检查包含 600 本合成 PDF（约 38 MiB）的保存、恢复及单本校正，以及 85 本合成书籍的浏览器分页、草稿、勾选和实际导出验证。这不代表任意大小真实书库的性能保证。
 
-```bash
-npm install
+## 本地开发
 
-```
+使用 Node.js 22 与 npm。通过本地 HTTP 服务打开，不直接双击 HTML：
 
-### 2. 整理图书与构建数据
-
-1. 将你的 `.epub` 或 `.pdf` 文件放入 `public/books/` 目录下。
-2. 运行预处理脚本生成封面图与 `books.json`：
-```bash
-python build_library.py
-
-```
-
-
-
-### 3. 本地运行调试
-
-启动前端本地开发服务器：
-
-```bash
+```sh
+npm ci
 npm run dev
-
 ```
 
-打开控制台输出的本地链接（如 `http://localhost:5173/folio-library/`）即可实时预览书架。
+打开终端提示的 `/folio-library/` 地址。生产构建及预览：
 
----
-
-## 🚀 发布到 GitHub Pages
-
-推送代码到 GitHub 仓库的 `main` 分支即可自动触发构建与部署：
-
-```powershell
-git add .
-git commit -m "feat: add new books and update library metadata"
-git push origin main
-
+```sh
+npm run check
+npm run preview
 ```
 
-构建完成后，在仓库 **Actions** 页面可查看部署状态，几秒后刷新在线站点即可看到最新书架。
+`npm run check` 依次运行 TypeScript 检查、回归测试、生产构建。也可分别运行 `npm run typecheck`、`npm test`、`npm run build`。测试使用合成文件和最小书目前页文字样例，不需要私人书库。浏览器交互与部署后的访问另行验证，单元测试不替代这两项检查。
 
----
+主要代码：
 
-## 📄 开源许可
+```text
+src/App.tsx                 工作台、详情、任务与导出交互
+src/lib/parse.ts            文件识别和解析
+src/lib/resolve.ts          书目来源与冲突处理
+src/lib/pipeline.ts         命名与去重
+src/lib/storage.ts          增量保存、迁移和冲突保护
+src/lib/document-cover.ts   生成封面
+src/lib/embed-cover.ts      PDF / EPUB 嵌入
+src/lib/export-plan.ts      导出前检查、范围和路径
+src/lib/export.ts           CSV、ZIP 和结果记录
+src/lib/notes.ts            Markdown 模板渲染
+check-*.cjs / test.cjs       回归与存储验证
+.github/workflows/pages.yml 检查、构建和 GitHub Pages 部署
+```
 
-本项目基于 [MIT License](https://www.google.com/search?q=LICENSE) 开源。
+## 线上部署
+
+当前项目入口为 `https://questfrontiers.com/folio-library/`，Vite 的 `base` 为 `/folio-library/`。部署到其他子目录时必须同步修改 `vite.config.ts`。使用 HTTPS，确保 Web Crypto 等浏览器功能可用。
+
+GitHub 仓库为 `XmyHee/folio-library`（旧地址 `folio-epub` 会跳转）。仓库 Pages 使用 GitHub Actions；推送 `main` 或手动运行 `pages.yml` 后，依次安装锁定依赖、检查类型、执行测试、构建 `dist` 并部署。检查失败不会进入部署步骤。
+
+发布前检查待提交文件，勿提交书籍原件、私人模板、下载包或本地测试页面。发布后核对 Actions 成功、实际网站及新资源加载，而不是只确认推送成功。静态站点升级不主动清空浏览器书库；再次打开后等待页面显示保存完成。
+
+若需要回退代码，回退对应提交并重新执行发布。数据库 v2 迁移后，旧版只支持 v1 的应用不能直接读取新结构，因此不要把代码回退当作数据回退：先导出备份，再使用兼容数据库 v2 的版本恢复。

@@ -1,3 +1,4 @@
+import { chineseAuthorNames } from "./chinese-author";
 import type { NamingMode } from "./types";
 
 const VSI_PATTERNS = [
@@ -300,6 +301,7 @@ export function proposeFilename(
   originalName: string,
   mode: NamingMode,
   series?: string,
+  language?: string,
 ): { cleanTitle: string; displayAuthor: string; proposedName: string; bookKey: string } {
   const extMatch = originalName.match(/\.(epub|pdf)$/i);
   const ext = extMatch ? extMatch[0]!.toLowerCase() : ".epub";
@@ -308,12 +310,15 @@ export function proposeFilename(
   );
   const cleanTitle =
     sanitizeVsiTitle(title, mode, series, originalName) || sanitizeFilenamePart(fallbackTitle) || "Untitled";
-  const displayAuthor = joinAuthors(authors);
+  const chineseBook = /^zh(?:[-_]|$)/i.test(language ?? "")
+    || (!language && /[\u3400-\u9fff]/.test(title));
+  const displayAuthor = joinAuthors(chineseBook ? chineseAuthorNames(authors, originalName) : authors);
   const proposedName =
     cleanTitle + " - " + sanitizeFilenamePart(displayAuthor) + ext;
   const keyTitle =
     cleanKeyText(titleWithoutVolume(title || originalName)) || cleanKeyText(originalName);
-  const keyAuthor = cleanKeyText(displayAuthor === "Unknown" ? "" : displayAuthor);
+  const identityAuthor = joinAuthors(authors);
+  const keyAuthor = cleanKeyText(identityAuthor === "Unknown" ? "" : identityAuthor);
   const vol = extractVolumeKey(title, originalName);
   // Unique fallback: never collapse different files into one empty key
   const fallback = "file_" + alnumKey(originalName) || "file_" + originalName.length;

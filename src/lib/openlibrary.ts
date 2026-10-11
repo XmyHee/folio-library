@@ -31,10 +31,10 @@ async function fetchGoogleBooks(isbn: string, signal?: AbortSignal): Promise<Ope
       signal,
       headers: {
         Accept: "application/json",
-        "User-Agent": "Folio-EPUB-Organizer/1.0",
       },
     });
-    if (!res.ok) return null;
+    if (res.status === 404) return null;
+    if (!res.ok) throw new Error("HTTP " + res.status);
     const data = (await res.json()) as {
       items?: Array<{
         volumeInfo?: {
@@ -61,8 +61,8 @@ async function fetchGoogleBooks(isbn: string, signal?: AbortSignal): Promise<Ope
       isbn,
       source: "google",
     };
-  } catch {
-    return null;
+  } catch (error) {
+    throw error;
   }
 }
 
@@ -77,7 +77,8 @@ async function fetchOpenLibrary(isbn: string, signal?: AbortSignal): Promise<Ope
       signal,
       headers: { Accept: "application/json" },
     });
-    if (!res.ok) return null;
+    if (res.status === 404) return null;
+    if (!res.ok) throw new Error("HTTP " + res.status);
     const data = (await res.json()) as Record<
       string,
       {
@@ -103,50 +104,78 @@ async function fetchOpenLibrary(isbn: string, signal?: AbortSignal): Promise<Ope
       isbn,
       source: "openlibrary",
     };
-  } catch {
-    return null;
+  } catch (error) {
+    throw error;
   }
 }
 
-/** Google Books first, then Open Library */
-export async function lookupIsbn(isbn: string, signal?: AbortSignal): Promise<OpenLibraryHit | null> {
-  const key = normalizeIsbnKey(isbn);
-  if (!key || (key.length !== 10 && key.length !== 13)) return null;
-  if (cache.has(key)) return cache.get(key) ?? null;
+export type LookupStatus = "found" | "not_found" | "failed" | "timeout";
+export type LookupResult = { status: LookupStatus; hit?: OpenLibraryHit };
+export type LookupOptions = { force?: boolean; timeoutMs?: number; signal?: AbortSignal; onResult?: (isbn: string, result: LookupResult) => void };
 
-  let hit = await fetchGoogleBooks(key, signal);
-  if (!hit) hit = await fetchOpenLibrary(key, signal);
-  cache.set(key, hit);
-  return hit;
+/** Bound each provider request, including response-body reads. Failures are never negative-cache entries. */
+async function requestProvider(provider: typeof fetchGoogleBooks, isbn: string, options: LookupOptions): Promise<LookupResult> {
+  const controller = new AbortController();
+  let timedOut = false;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const abort = () => controller.abort();
+  options.signal?.addEventListener("abort", abort, { once: true });
+  try {
+    if (options.signal?.aborted) throw new Error("查询已取消");
+    const timeout = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => { timedOut = true; controller.abort(); reject(new Error("查询超时")); }, options.timeoutMs ?? 8000);
+    });
+    const cancelled = new Promise<never>((_, reject) => {
+      controller.signal.addEventListener("abort", () => reject(new Error("查询已取消")), { once: true });
+    });
+    const hit = await Promise.race([provider(isbn, controller.signal), timeout, cancelled]);
+    return hit ? { status: "found", hit } : { status: "not_found" };
+  } catch {
+    if (options.signal?.aborted) throw new Error("查询已取消");
+    return { status: timedOut ? "timeout" : "failed" };
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+    options.signal?.removeEventListener("abort", abort);
+  }
 }
 
-export async function lookupIsbnBatch(
-  isbns: string[],
-  onProgress?: (done: number, total: number) => void,
-  concurrency = 2,
-): Promise<Map<string, OpenLibraryHit>> {
-  const unique = [
-    ...new Set(isbns.map(normalizeIsbnKey).filter((x) => x.length === 10 || x.length === 13)),
-  ];
-  const out = new Map<string, OpenLibraryHit>();
-  let done = 0;
-  let next = 0;
+export async function lookupIsbnResult(isbn: string, options: LookupOptions = {}): Promise<LookupResult> {
+  const key = normalizeIsbnKey(isbn);
+  if (options.signal?.aborted) throw new Error("查询已取消");
+  if (key.length !== 10 && key.length !== 13) return { status: "not_found" };
+  if (options.force) cache.delete(key);
+  if (cache.has(key)) { const hit = cache.get(key); return hit ? { status: "found", hit } : { status: "not_found" }; }
+  const first = await requestProvider(fetchGoogleBooks, key, options);
+  if (first.hit) { cache.set(key, first.hit); return first; }
+  const second = await requestProvider(fetchOpenLibrary, key, options);
+  if (second.hit) { cache.set(key, second.hit); return second; }
+  if (first.status === "not_found" && second.status === "not_found") { cache.set(key, null); return { status: "not_found" }; }
+  return { status: first.status === "timeout" || second.status === "timeout" ? "timeout" : "failed" };
+}
 
+/** Backwards-compatible hit-only lookup. */
+export async function lookupIsbn(isbn: string, signal?: AbortSignal): Promise<OpenLibraryHit | null> {
+  return (await lookupIsbnResult(isbn, { signal })).hit ?? null;
+}
+
+export async function lookupIsbnBatch(isbns: string[], onProgress?: (done: number, total: number) => void, concurrency = 2, options: LookupOptions = {}): Promise<Map<string, OpenLibraryHit>> {
+  const unique = [...new Set(isbns.map(normalizeIsbnKey).filter(key => key.length === 10 || key.length === 13))];
+  const out = new Map<string, OpenLibraryHit>();
+  let done = 0, next = 0;
   async function worker() {
-    while (true) {
-      const i = next++;
-      if (i >= unique.length) return;
-      const isbn = unique[i]!;
-      const hit = await lookupIsbn(isbn);
-      if (hit) out.set(isbn, hit);
-      done += 1;
-      onProgress?.(done, unique.length);
-      await new Promise((r) => setTimeout(r, 80));
+    while (next < unique.length) {
+      if (options.signal?.aborted) throw new Error("查询已取消");
+      const isbn = unique[next++]!;
+      const result = await lookupIsbnResult(isbn, options);
+      if (result.hit) out.set(isbn, result.hit);
+      options.onResult?.(isbn, result);
+      onProgress?.(++done, unique.length);
     }
   }
-
-  const n = Math.min(concurrency, Math.max(unique.length, 1));
-  await Promise.all(Array.from({ length: n }, () => worker()));
+  const count = Math.min(Math.max(1, Math.min(4, Math.floor(concurrency) || 1)), Math.max(unique.length, 1));
+  const settled = await Promise.allSettled(Array.from({ length: count }, () => worker()));
+  const failed = settled.find(result => result.status === "rejected");
+  if (failed?.status === "rejected") throw failed.reason;
   return out;
 }
 

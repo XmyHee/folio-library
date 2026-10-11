@@ -1,0 +1,226 @@
+[
+  {
+    "str": "Volume estimates for unions of convex sets, and the Kakeya set",
+    "dir": "ltr",
+    "width": 437.87197746000015,
+    "height": 17.2154,
+    "transform": [
+      17.2154,
+      0,
+      0,
+      17.2154,
+      87.065,
+      665.305
+    ],
+    "fontName": "g_d1_f1",
+    "hasEOL": true
+  },
+  {
+    "str": "conjecture in three dimensions",
+    "dir": "ltr",
+    "width": 209.60093807999996,
+    "height": 17.2154,
+    "transform": [
+      17.2154,
+      0,
+      0,
+      17.2154,
+      201.196,
+      643.387
+    ],
+    "fontName": "g_d1_f1",
+    "hasEOL": false
+  },
+  {
+    "str": "",
+    "dir": "ltr",
+    "width": 0,
+    "height": 0,
+    "transform": [
+      11.9552,
+      0,
+      0,
+      11.9552,
+      219.292,
+      608.3789999999999
+    ],
+    "fontName": "g_d1_f2",
+    "hasEOL": true
+  },
+  {
+    "str": "Hong Wang",
+    "dir": "ltr",
+    "width": 60.15139328000002,
+    "height": 11.9552,
+    "transform": [
+      11.9552,
+      0,
+      0,
+      11.9552,
+      219.292,
+      608.3789999999999
+    ],
+    "fontName": "g_d1_f2",
+    "hasEOL": false
+  },
+  {
+    "str": "∗",
+    "dir": "ltr",
+    "width": 4.23292011,
+    "height": 7.9701,
+    "transform": [
+      7.9701,
+      0,
+      0,
+      7.9701,
+      279.44,
+      612.7169999999999
+    ],
+    "fontName": "g_d1_f3",
+    "hasEOL": false
+  },
+  {
+    "str": " ",
+    "dir": "ltr",
+    "width": 43.45107989000002,
+    "height": 0,
+    "transform": [
+      7.9701,
+      0,
+      0,
+      7.9701,
+      283.67292011,
+      612.7169999999999
+    ],
+    "fontName": "g_d1_f3",
+    "hasEOL": false
+  },
+  {
+    "str": "Joshua Zahl",
+    "dir": "ltr",
+    "width": 61.68165888000003,
+    "height": 11.9552,
+    "transform": [
+      11.9552,
+      0,
+      0,
+      11.9552,
+      327.124,
+      608.3789999999999
+    ],
+    "fontName": "g_d1_f2",
+    "hasEOL": false
+  },
+  {
+    "str": " ",
+    "dir": "ltr",
+    "width": 3.902341119999903,
+    "height": 0,
+    "transform": [
+      11.9552,
+      0,
+      0,
+      11.9552,
+      388.8056588800001,
+      608.3789999999999
+    ],
+    "fontName": "g_d1_f2",
+    "hasEOL": false
+  },
+  {
+    "str": "†",
+    "dir": "ltr",
+    "width": 3.7626842100000006,
+    "height": 7.9701,
+    "transform": [
+      7.9701,
+      0,
+      0,
+      7.9701,
+      392.708,
+      612.7169999999999
+    ],
+    "fontName": "g_d1_f3",
+    "hasEOL": false
+  },
+  {
+    "str": "",
+    "dir": "ltr",
+    "width": 0,
+    "height": 0,
+    "transform": [
+      11.9552,
+      0,
+      0,
+      11.9552,
+      259.909,
+      579.2239999999998
+    ],
+    "fontName": "g_d1_f2",
+    "hasEOL": true
+  },
+  {
+    "str": "February 26, 2025",
+    "dir": "ltr",
+    "width": 92.18415615999996,
+    "height": 11.9552,
+    "transform": [
+      11.9552,
+      0,
+      0,
+      11.9552,
+      259.909,
+      579.2239999999998
+    ],
+    "fontName": "g_d1_f2",
+    "hasEOL": false
+  },
+  {
+    "str": "",
+    "dir": "ltr",
+    "width": 0,
+    "height": 0,
+    "transform": [
+      9.9626,
+      0,
+      0,
+      9.9626,
+      284.082,
+      522.2979999999998
+    ],
+    "fontName": "g_d1_f4",
+    "hasEOL": true
+  },
+  {
+    "str": "Abstract",
+    "dir": "ltr",
+    "width": 43.835440000000006,
+    "height": 9.9626,
+    "transform": [
+      9.9626,
+      0,
+      0,
+      9.9626,
+      284.082,
+      522.2979999999998
+    ],
+    "fontName": "g_d1_f4",
+    "hasEOL": false
+  },
+  {
+    "str": "arXiv:2502.17655v1 [math.CA] 24 Feb 2025",
+    "dir": "ltr",
+    "width": 372.2,
+    "height": 20,
+    "transform": [
+      0,
+      20,
+      -20,
+      0,
+      32,
+      222
+    ],
+    "fontName": "g_d1_f14",
+    "hasEOL": false
+  }
+]

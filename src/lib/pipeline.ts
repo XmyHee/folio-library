@@ -4,7 +4,7 @@ import {
   looksLikeCopyName,
   primaryIsbn,
   proposeFilename,
-  titleSimilarity,
+  titleTokenSet,
   titleWithoutVolume,
 } from "./normalize";
 import { resolveBookMeta } from "./resolve";
@@ -42,10 +42,11 @@ function scoreBook(book: ParsedBook): number {
 
 function uniqueName(desired: string, taken: Set<string>): string {
   if (!taken.has(desired.toLowerCase())) return desired;
-  const stem = desired.replace(/\.epub$/i, "");
+  const ext = desired.match(/\.[^.]+$/)?.[0] ?? "";
+  const stem = ext ? desired.slice(0, -ext.length) : desired;
   let n = 2;
-  while (taken.has((stem + " (" + n + ").epub").toLowerCase())) n += 1;
-  return stem + " (" + n + ").epub";
+  while (taken.has((stem + " (" + n + ")" + ext).toLowerCase())) n += 1;
+  return stem + " (" + n + ")" + ext;
 }
 
 function pickKeep(
@@ -100,36 +101,31 @@ class UnionFind {
 }
 
 const FUZZY_TITLE_THRESHOLD = 0.94;
-/** Only fuzzy-match when authors overlap or both missing */
-function authorsCompatible(a: DerivedBook, b: DerivedBook): boolean {
-  const fa = authorFingerprint(a.authors);
-  const fb = authorFingerprint(b.authors);
-  // Both missing author: only allow fuzzy if titles are nearly identical (handled by higher threshold)
-  if (!fa && !fb) return true;
-  // One missing: do NOT fuzzy-merge (too many false positives for multi-volume sets)
-  if (!fa || !fb) return false;
-  if (fa === fb) return true;
-  const sa = new Set(fa.split(" ").filter((t) => t.length > 2));
-  const sb = new Set(fb.split(" ").filter((t) => t.length > 2));
-  let inter = 0;
-  for (const t of sa) if (sb.has(t)) inter += 1;
-  // Require stronger author overlap (at least 2 shared tokens, or 1 if both single-token surnames)
-  if (sa.size <= 1 && sb.size <= 1) return inter >= 1;
-  return inter >= 2;
+/** Prepare once per book; matching rules and thresholds are unchanged. */
+function fuzzyFeatures(book: DerivedBook) {
+  const fingerprint = authorFingerprint(book.authors);
+  const title = titleWithoutVolume(book.rawTitle || book.cleanTitle);
+  return { fingerprint, authors: new Set(fingerprint.split(" ").filter(token => token.length > 2)),
+    tokens: titleTokenSet(title), length: title.replace(/\s+/g, "").length,
+    volume: extractVolumeKey(book.rawTitle, book.series, book.originalName, book.relativePath),
+    series: (book.series || "").trim().toLowerCase() };
 }
-
-/** Extra guard: titles must share enough distinctive tokens */
-function titlesStrictMatch(a: string, b: string): boolean {
-  const sim = titleSimilarity(a, b);
-  if (sim < FUZZY_TITLE_THRESHOLD) return false;
-  // Reject if one title is much longer (likely different work in a series)
-  const la = a.replace(/\s+/g, "").length;
-  const lb = b.replace(/\s+/g, "").length;
-  if (la > 0 && lb > 0) {
-    const ratio = Math.min(la, lb) / Math.max(la, lb);
-    if (ratio < 0.75) return false;
-  }
-  return true;
+function authorsCompatible(a: ReturnType<typeof fuzzyFeatures>, b: ReturnType<typeof fuzzyFeatures>): boolean {
+  if (!a.fingerprint && !b.fingerprint) return true;
+  if (!a.fingerprint || !b.fingerprint) return false;
+  if (a.fingerprint === b.fingerprint) return true;
+  let shared = 0;
+  for (const token of a.authors) if (b.authors.has(token)) shared++;
+  return a.authors.size <= 1 && b.authors.size <= 1 ? shared >= 1 : shared >= 2;
+}
+function titlesStrictMatch(a: ReturnType<typeof fuzzyFeatures>, b: ReturnType<typeof fuzzyFeatures>): boolean {
+  if (a.tokens.size < 2 || b.tokens.size < 2) return false;
+  if (a.length > 0 && b.length > 0 && Math.min(a.length,b.length) / Math.max(a.length,b.length) < 0.75) return false;
+  // A size bound can reject pairs without enumerating their token intersection.
+  if (Math.min(a.tokens.size,b.tokens.size) / Math.max(a.tokens.size,b.tokens.size) < FUZZY_TITLE_THRESHOLD) return false;
+  let shared = 0;
+  for (const token of a.tokens) if (b.tokens.has(token)) shared++;
+  return shared / (a.tokens.size + b.tokens.size - shared) >= FUZZY_TITLE_THRESHOLD;
 }
 
 export function runPipeline(
@@ -149,9 +145,12 @@ export function runPipeline(
     const naming = proposeFilename(
       resolved.title,
       resolved.authors,
-      book.originalName,
+      book.kind === "pdf" || book.kind === "epub"
+        ? book.originalName.replace(/\.[^.]+$/, "") + "." + book.kind
+        : book.originalName,
       mode,
       book.series,
+      book.language,
     );
     return {
       ...book,
@@ -163,6 +162,7 @@ export function runPipeline(
       resolvedTitle: resolved.title,
       resolvedAuthors: resolved.authors,
       metaSource: resolved.source,
+      warnings: [...(book.warnings ?? []), ...(resolved.warnings ?? [])],
       groupId: null,
       role: "unique" as const,
       score: scoreBook(book),
@@ -176,7 +176,7 @@ export function runPipeline(
   // ── 1) Exact content hash ──────────────────────────────────────────
   const byHash = new Map<string, DerivedBook[]>();
   for (const book of derived) {
-    if (!book.hash) continue;
+    if (!/^[a-f0-9]{64}$/i.test(book.hash)) continue;
     const list = byHash.get(book.hash) ?? [];
     list.push(book);
     byHash.set(book.hash, list);
@@ -228,30 +228,20 @@ export function runPipeline(
   // ── 4) Fuzzy title + compatible authors (never merge different volumes) ──
   const candidates = derived.filter((b) => !claimed.has(b.id));
   const uf = new UnionFind();
+  const features = candidates.map(fuzzyFeatures);
   for (let i = 0; i < candidates.length; i++) {
     for (let j = i + 1; j < candidates.length; j++) {
       const a = candidates[i]!;
       const b = candidates[j]!;
-      if (!authorsCompatible(a, b)) continue;
+      const fa = features[i]!, fb = features[j]!;
+      if (!authorsCompatible(fa, fb)) continue;
 
       // Different ISBN => different editions/volumes, never fuzzy-merge
       if (a.isbn && b.isbn && a.isbn !== b.isbn) continue;
 
-      // Multi-volume series: different volume / part numbers are different books
-      const volA = extractVolumeKey(a.rawTitle, a.series, a.originalName, a.relativePath);
-      const volB = extractVolumeKey(b.rawTitle, b.series, b.originalName, b.relativePath);
-      if (volA && volB && volA !== volB) continue;
-
-      // Different named series should not fuzzy-merge
-      const seriesA = (a.series || "").trim().toLowerCase();
-      const seriesB = (b.series || "").trim().toLowerCase();
-      if (seriesA && seriesB && seriesA !== seriesB) continue;
-
-      // Compare titles with volume markers stripped so "Foo Vol.1" vs "Foo Vol.2"
-      // are similar on base text but already blocked by volume check above
-      const titleA = titleWithoutVolume(a.rawTitle || a.cleanTitle);
-      const titleB = titleWithoutVolume(b.rawTitle || b.cleanTitle);
-      if (titlesStrictMatch(titleA, titleB)) {
+      if (fa.volume && fb.volume && fa.volume !== fb.volume) continue;
+      if (fa.series && fb.series && fa.series !== fb.series) continue;
+      if (titlesStrictMatch(fa, fb)) {
         uf.union(a.id, b.id);
       }
     }

@@ -1,0 +1,61 @@
+const assert = require('node:assert/strict'), fs = require('node:fs'), ts = require('typescript');
+require('fake-indexeddb/auto');
+require.extensions['.ts'] = (m,p) => m._compile(ts.transpileModule(fs.readFileSync(p,'utf8'), {compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,esModuleInterop:true}}).outputText,p);
+const {currentViewBooks} = require('./src/lib/view-scope.ts');
+const {savedDetailDraft,detailDraftChanged} = require('./src/lib/detail-draft.ts');
+const {reviewKey,isReviewed,reviewReasons} = require('./src/lib/review.ts');
+const {createExportPlan} = require('./src/lib/export-plan.ts');
+const {toAuditCsv,toExportResultCsv} = require('./src/lib/export.ts');
+const {saveLibrary,loadLibrary} = require('./src/lib/storage.ts');
+const online = require('./src/lib/openlibrary.ts');
+const base = {id:'a',file:new Blob(['original']),hash:'original',rawTitle:'Title',resolvedTitle:'Title',authors:['Author'],resolvedAuthors:['Author'],displayAuthor:'Author',kind:'pdf',originalName:'Title - Author.pdf',relativePath:'Title - Author.pdf',proposedName:'Title - Author.pdf',role:'unique',nameChanged:false,status:'ok',identifiers:[],publisher:'',series:'',language:'',date:'',size:8};
+(async()=>{
+ const changed = {...base,id:'b',nameChanged:true};
+ const duplicate = {...base,id:'c',role:'duplicate',groupId:'g'};
+ const kept = {...base,id:'d',role:'keep',groupId:'g'};
+ const all = [base,changed,duplicate,kept], groups=[{id:'g',bookIds:['c','d']}];
+ assert.deepEqual(currentViewBooks(all,all,groups,'rename').map(b=>b.id),['b']);
+ assert.deepEqual(currentViewBooks([duplicate],all,groups,'dedupe').map(b=>b.id),['c','d']);
+ assert.equal(toAuditCsv(currentViewBooks(all,all,groups,'rename')).split('\n').length,2);
+ const missing={...base,id:'missing',authors:[],resolvedAuthors:[]};
+ const reviewed={...missing,reviewedMetadataKey:reviewKey(missing)};
+ assert.equal(isReviewed(reviewed),true);assert.ok(reviewReasons(reviewed).includes('缺少作者'));
+ const plan=createExportPlan([base,missing,reviewed],{includeDuplicates:true,excludePending:true});
+ assert.equal(plan.summary.selected,3);assert.equal(plan.summary.files,2);assert.equal(plan.summary.skipped,1);
+ assert.equal(plan.entries[1].skipReason,'本次排除待审核书籍');
+ assert.ok(toExportResultCsv({records:[{id:'x',originalName:'x',proposedName:'x',status:'success',informationStatus:'待补全 / 有异常'}]}).includes('待补全 / 有异常'));
+ const draft=savedDetailDraft(base);assert.equal(detailDraftChanged(base,draft),false);
+ assert.equal(detailDraftChanged(base,{...draft,title:'Changed'}),true);
+ assert.equal(detailDraftChanged(base,{...draft,coverTitle:'Cover draft'}),true);
+
+ // Exercise actual clear/undo handlers with a stateful hook harness.
+ const source=fs.readFileSync('src/App.tsx','utf8');
+ const handlers=ts.transpileModule(source.slice(source.indexOf('  function clearAll()'),source.indexOf('  async function retryCatalog()')),{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText;
+ const state={books:[base],keepOverrides:{g:'a'},olByIsbn:new Map([['isbn',{title:'Catalog'}]]),exportReport:{succeeded:1},clearedLibrary:undefined,storageReady:true,importingRef:{current:false},exporting:false,busy:false,revokeCovers:()=>{throw Error('original previews revoked before undo window ended')}};
+ for(const key of ['Books','KeepOverrides','OlByIsbn','ExportReport','ClearedLibrary']) state['set'+key]=value=>{const field=key[0].toLowerCase()+key.slice(1);state[field]=typeof value==='function'?value(state[field]):value;};
+ for(const key of ['Selected','Query','CoverFilter','ReviewFilter','InformationFilter','Tab','Error','LookupResults','LookupSummary','ExportScope','ShowExportReview','ShowCoverBatchReview','ShowClearConfirm'])state['set'+key]=()=>{};
+ const actions=new Function('state','with(state){'+handlers+';return {clearAll,undoClear};}')(state);
+ actions.clearAll();assert.equal(state.books.length,0);assert.equal(state.clearedLibrary.books[0].id,'a');
+ await saveLibrary({version:1,books:state.books,namingMode:1,keepOverrides:state.keepOverrides,olByIsbn:state.olByIsbn,useOnlineMeta:false,includeDuplicates:true,clearedLibrary:state.clearedLibrary});
+ const loaded=await loadLibrary();assert.equal(await loaded.clearedLibrary.books[0].file.text(),'original');
+ state.books=[{...base,id:'new'}];actions.undoClear();assert.deepEqual(state.books.map(b=>b.id),['a','new']);assert.equal(state.clearedLibrary,undefined);assert.equal(state.keepOverrides.g,'a');
+ actions.clearAll();state.clearedLibrary.expiresAt=Date.now()-1;actions.undoClear();assert.equal(state.books.length,0);
+ await saveLibrary({version:1,books:[],namingMode:1,keepOverrides:{},olByIsbn:new Map(),useOnlineMeta:false,includeDuplicates:true,clearedLibrary:state.clearedLibrary});assert.equal((await loadLibrary()).clearedLibrary,undefined);
+
+ // Mock providers: no network requests or uploaded books.
+ let calls=0;global.fetch=async()=>{calls++;throw Error('temporary failure')};
+ assert.equal((await online.lookupIsbnResult('9780131103627')).status,'failed');
+ assert.equal((await online.lookupIsbnResult('9780131103627')).status,'failed');assert.equal(calls,4);
+ global.fetch=async()=>({ok:true,json:async()=>({items:[{volumeInfo:{title:'Recovered',authors:['Author']}}]})});
+ assert.equal((await online.lookupIsbnResult('9780131103627')).hit.title,'Recovered');
+ online.clearOpenLibraryCache();calls=0;global.fetch=async()=>{calls++;return {ok:true,json:async()=>({})}};
+ assert.equal((await online.lookupIsbnResult('9780131103627')).status,'not_found');await online.lookupIsbnResult('9780131103627');assert.equal(calls,2);
+ await online.lookupIsbnResult('9780131103627',{force:true});assert.equal(calls,4);
+ online.clearOpenLibraryCache();global.fetch=async()=>({ok:true,json:()=>new Promise(()=>{})});
+ assert.equal((await online.lookupIsbnResult('9780131103627',{timeoutMs:10})).status,'timeout');
+ const controller=new AbortController();controller.abort();await assert.rejects(()=>online.lookupIsbnResult('9780131103627',{signal:controller.signal}),/取消/);
+ online.clearOpenLibraryCache();let active=0,peak=0;
+ global.fetch=async()=>{active++;peak=Math.max(peak,active);await new Promise(resolve=>setTimeout(resolve,5));active--;return {ok:true,json:async()=>({})}};
+ const results=[];await online.lookupIsbnBatch(['9780131103627','9780262033848','9781492051367'],undefined,2,{onResult:(isbn,result)=>results.push(result.status)});assert.ok(peak<=2);assert.equal(results.length,3);
+ console.log('PASS shared view/CSV/export scope, independent review/issues, draft detection, actual clear/undo/new-import merge, durable undo/expiry, network failure recovery/negative cache/forced retry/body timeout/cancellation/bounded concurrency');
+})().catch(error=>{console.error(error);process.exitCode=1});

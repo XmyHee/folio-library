@@ -1,0 +1,28 @@
+const fs=require('node:fs'),assert=require('node:assert/strict');
+const ts=require('typescript');require.extensions['.ts']=(m,p)=>m._compile(ts.transpileModule(fs.readFileSync(p,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText,p);
+const {currentViewBooks}=require('./src/lib/view-scope.ts');
+const s=fs.readFileSync('src/App.tsx','utf8');
+const start=s.indexOf('  const renameBooks =');
+const end=s.indexOf('  const viewBooks =',start);
+const select=new Function('filtered','pipeline','currentViewBooks',s.slice(start,end)+'return {renameBooks,duplicateBooks,visibleGroups};');
+const all=[{id:'a',role:'unique',nameChanged:false,groupId:null},{id:'b',role:'keep',nameChanged:true,groupId:'g'},{id:'c',role:'duplicate',nameChanged:true,groupId:'g'},{id:'d',role:'unique',nameChanged:true,groupId:null}];
+const pipeline={books:all,groups:[{id:'g',bookIds:['b','c']}]};
+let view=select(all,pipeline,currentViewBooks);
+assert.deepEqual(view.renameBooks.map(b=>b.id),['b','d']);
+assert.equal(view.duplicateBooks.length,2);
+assert.equal(view.visibleGroups.length,1);
+view=select([all[0]],pipeline,currentViewBooks);
+assert.equal(view.renameBooks.length,0);
+assert.equal(view.visibleGroups.length,0);
+view=select([all[2]],pipeline,currentViewBooks);
+assert.equal(view.visibleGroups.length,1);
+assert.equal(view.visibleGroups[0].bookIds.length,2);
+console.log('PASS: changed retained names only, duplicate book/group counts, search filtering with full comparison groups.');
+
+const {reviewNeighbors}=require('./src/lib/view-scope.ts');
+assert.equal(reviewNeighbors(all,'b',1).next.id,'c');
+assert.equal(reviewNeighbors([all[0],all[2],all[3]],'b',1).next.id,'c');
+assert.equal(reviewNeighbors([all[0],all[2],all[3]],'b',1).previous.id,'a');
+assert.equal(reviewNeighbors([all[1],all[2]],'a',0).next.id,'b');
+assert.equal(reviewNeighbors([],'a',0).next,undefined);
+console.log('PASS continuous review after a confirmed item leaves the pending filter');

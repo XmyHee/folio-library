@@ -1,0 +1,114 @@
+[
+  {
+    "str": "HILBERT’S SIXTH PROBLEM: DERIVATION OF FLUID EQUATIONS VIA",
+    "dir": "ltr",
+    "width": 410.1054477000001,
+    "height": 9.9626,
+    "transform": [
+      9.9626,
+      0,
+      0,
+      9.9626,
+      100.946,
+      670.639
+    ],
+    "fontName": "g_d0_f1",
+    "hasEOL": true
+  },
+  {
+    "str": "BOLTZMANN’S KINETIC THEORY",
+    "dir": "ltr",
+    "width": 194.39124746000002,
+    "height": 9.9626,
+    "transform": [
+      9.9626,
+      0,
+      0,
+      9.9626,
+      208.805,
+      656.691
+    ],
+    "fontName": "g_d0_f1",
+    "hasEOL": false
+  },
+  {
+    "str": "",
+    "dir": "ltr",
+    "width": 0,
+    "height": 0,
+    "transform": [
+      7.9701,
+      0,
+      0,
+      7.9701,
+      222.6,
+      626.803
+    ],
+    "fontName": "g_d0_f2",
+    "hasEOL": true
+  },
+  {
+    "str": "YU DENG, ZAHER HANI, AND XIAO MA",
+    "dir": "ltr",
+    "width": 166.7974557899999,
+    "height": 7.9701,
+    "transform": [
+      7.9701,
+      0,
+      0,
+      7.9701,
+      222.6,
+      626.803
+    ],
+    "fontName": "g_d0_f2",
+    "hasEOL": false
+  },
+  {
+    "str": "",
+    "dir": "ltr",
+    "width": 0,
+    "height": 0,
+    "transform": [
+      7.9701,
+      0,
+      0,
+      7.9701,
+      107.865,
+      599.425
+    ],
+    "fontName": "g_d0_f3",
+    "hasEOL": true
+  },
+  {
+    "str": "Abstract.",
+    "dir": "ltr",
+    "width": 40.949576790000016,
+    "height": 7.9701,
+    "transform": [
+      7.9701,
+      0,
+      0,
+      7.9701,
+      107.865,
+      599.425
+    ],
+    "fontName": "g_d0_f3",
+    "hasEOL": false
+  },
+  {
+    "str": "arXiv:2503.01800v1 [math.AP] 3 Mar 2025",
+    "dir": "ltr",
+    "width": 363.3,
+    "height": 20,
+    "transform": [
+      0,
+      20,
+      -20,
+      0,
+      32,
+      227
+    ],
+    "fontName": "g_d0_f8",
+    "hasEOL": false
+  }
+]
