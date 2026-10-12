@@ -26,5 +26,5 @@ export async function paginateMarkdown<T>(definition:TDocumentDefinitions,doc:Pi
     if(!next.size)return output;
     next.forEach(id=>breaks.add(id));
   }
-  throw new Error("标题分页未能稳定，请调整内容或纸张后重新转换");
+  throw new Error("标题分页未能稳定，请调整内容或纸张后重新导入");
 }

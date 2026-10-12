@@ -13,7 +13,6 @@ interface Props {
   saveReviewedMetadata:(book:DerivedBook, reset?:boolean)=>boolean; finishDetail:()=>void;
   persistDraft:(book:DerivedBook)=>void; setShowDraftPrompt:(value:boolean)=>void;
   draftDirty:boolean; metadataDirty:boolean;
-  reconvertMarkdown:(book:DerivedBook)=>Promise<void>;
   regenerateDocumentCover:(book:DerivedBook)=>Promise<void>;
   metadataTitleDraft:string; metadataAuthorsDraft:string; coverTitleDraft:string; coverAuthorDraft:string;
   updateDetailDraft:(field:keyof DetailDraft, value:string)=>void;
@@ -22,7 +21,7 @@ interface Props {
   lookupResults:Record<string, LookupResult>; olByIsbn:Map<string,OpenLibraryHit>;
 }
 
-export function BookDetailsPanel({selected, narrowScreen, closeDetails, busy, exporting, neighbors, openDetails, selectedIndex, viewBookCount, showDraftPrompt, saveReviewedMetadata, finishDetail, persistDraft, setShowDraftPrompt, draftDirty, storageReady, regenerateDocumentCover, reconvertMarkdown, metadataTitleDraft, metadataAuthorsDraft, updateDetailDraft, metadataDirty, confirmMetadataReview, coverTitleDraft, coverAuthorDraft, chooseTitleCover, useOriginalCover, lookupResults, olByIsbn}:Props) {
+export function BookDetailsPanel({selected, narrowScreen, closeDetails, busy, exporting, neighbors, openDetails, selectedIndex, viewBookCount, showDraftPrompt, saveReviewedMetadata, finishDetail, persistDraft, setShowDraftPrompt, draftDirty, storageReady, regenerateDocumentCover, metadataTitleDraft, metadataAuthorsDraft, updateDetailDraft, metadataDirty, confirmMetadataReview, coverTitleDraft, coverAuthorDraft, chooseTitleCover, useOriginalCover, lookupResults, olByIsbn}:Props) {
   return (
 <div
           className="dialog-backdrop"
@@ -73,9 +72,16 @@ export function BookDetailsPanel({selected, narrowScreen, closeDetails, busy, ex
                 </div>
               </div>
             </div>
-            {!selected.markdownSource && (selected.kind === "pdf" || selected.kind === "epub") ? <button className="btn btn-secondary" disabled={busy || exporting || !storageReady} onClick={() => void regenerateDocumentCover(selected)}>重新识别书目与封面</button> : null}
-            <section className="detail-section" aria-label="人工校正书目">
-              <strong>人工校正书目{selected.manualMetadata ? " · 已保存" : ""}</strong>
+              <details key={`${selected.id}-file`} className="detail-section" open><summary>文件信息</summary><div className="detail-section-body"><dl className="dl">
+              <dt>实际格式</dt><dd>{selected.markdownSource && selected.status === "error" ? "Markdown（未转为 PDF）" : selected.kind?.toUpperCase() || "未知"}</dd>
+              {selected.markdownSource && selected.error ? <><dt>转换失败</dt><dd role="alert">{selected.error}</dd></> : null}
+              <dt>联网状态</dt><dd>{!selected.isbn ? "无 ISBN" : lookupResults[selected.isbn.replace(/[^0-9Xx]/g, "").toUpperCase()] ? { found: "已匹配", not_found: "未找到书目", failed: "查询失败，可重试", timeout: "查询超时，可重试" }[lookupResults[selected.isbn.replace(/[^0-9Xx]/g, "").toUpperCase()]!.status] : olByIsbn.has(selected.isbn.replace(/[^0-9Xx]/g, "").toUpperCase()) ? "已缓存书目" : "未查询"}</dd>
+              <dt>原始文件名</dt><dd>{selected.originalName}</dd>
+              <dt>建议文件名</dt><dd>{selected.proposedName}</dd>
+              <dt>识别提示</dt><dd>{selected.warnings?.join("；") || "无"}</dd>
+            </dl><div className="actions">{!selected.markdownSource && (selected.kind === "pdf" || selected.kind === "epub") ? <button className="btn btn-secondary" disabled={busy || exporting || !storageReady} onClick={() => void regenerateDocumentCover(selected)}>重新识别书目与封面</button> : null}</div></div></details>
+            <details key={`${selected.id}-metadata`} className="detail-section" open>
+              <summary>校正书目{selected.manualMetadata ? <span className="detail-saved">已保存</span> : null}</summary><div className="detail-section-body">
               <p className="hint">审核：{isReviewed(selected) ? "已人工审核" : "未人工审核"} · 信息：{reviewReasons(selected).join("；") || "无已知异常"}</p>
               <div className="detail-fields">
               <label>书名<textarea className="search" rows={3} value={metadataTitleDraft} disabled={busy || exporting} onChange={event => updateDetailDraft("title", event.target.value)} /></label>
@@ -85,8 +91,8 @@ export function BookDetailsPanel({selected, narrowScreen, closeDetails, busy, ex
               <p className="hint">保存后更新命名与去重；已有生成封面需重新生成。</p>
               <div className="actions"><button className="btn btn-secondary" disabled={busy || exporting || !storageReady || isReviewed(selected) || metadataDirty} onClick={() => confirmMetadataReview(selected)}>确认已审核</button><button className="btn btn-ghost" disabled={busy || exporting || !storageReady || !isReviewed(selected)} onClick={() => confirmMetadataReview(selected, true)}>撤销审核</button></div>
               <p className="hint">请先保存再确认。确认不消除错误；书目变化后需重新审核。</p>
-            </section>
-            {selected.kind === "pdf" || selected.kind === "epub" ? <details className="detail-section"><summary>封面设置</summary>
+            </div></details>
+            {selected.kind === "pdf" || selected.kind === "epub" ? <details key={`${selected.id}-cover`} className="detail-section" open><summary>封面设置</summary><div className="detail-section-body">
             <div className="detail-fields">
             {selected.kind === "pdf" || selected.kind === "epub" ? <div className="detail-cover-fields">
               <label>封面标题<textarea className="search" style={{ width: "100%", boxSizing: "border-box" }} rows={3} disabled={busy || exporting} value={coverTitleDraft} onChange={event => updateDetailDraft("coverTitle", event.target.value)} /></label>
@@ -103,17 +109,8 @@ export function BookDetailsPanel({selected, narrowScreen, closeDetails, busy, ex
             <button className="btn btn-ghost" disabled={busy || exporting || !storageReady} onClick={() => void chooseTitleCover(selected, coverColors[crypto.getRandomValues(new Uint32Array(1))[0]! % coverColors.length])}>随机配色并生成</button>
             </div>
             <p className="hint">导出时嵌入生成封面，保留正文与 Originals 原文件；选择原封面 / 首页可恢复。</p>
-            </details> : null}
-              {selected.markdownSource ? <section className="detail-section" aria-label="Markdown 转换"><strong>Markdown → PDF</strong><p className="hint">原件与图片已保留。使用当前排版重新转换，保留人工校正、审核和选定封面；文件内 YAML 排版优先。</p><button className="btn btn-secondary" disabled={busy || exporting || !storageReady} onClick={()=>void reconvertMarkdown(selected)}>重新转换 PDF</button></section> : null}
-              <section className="detail-section" aria-label="文件信息"><strong>文件信息</strong><dl className="dl">
-              <dt>实际格式</dt><dd>{selected.markdownSource && selected.status === "error" ? "Markdown（未转为 PDF）" : selected.kind?.toUpperCase() || "未知"}</dd>
-              {selected.markdownSource && selected.error ? <><dt>转换失败</dt><dd role="alert">{selected.error}</dd></> : null}
-              <dt>联网状态</dt><dd>{!selected.isbn ? "无 ISBN" : lookupResults[selected.isbn.replace(/[^0-9Xx]/g, "").toUpperCase()] ? { found: "已匹配", not_found: "未找到书目", failed: "查询失败，可重试", timeout: "查询超时，可重试" }[lookupResults[selected.isbn.replace(/[^0-9Xx]/g, "").toUpperCase()]!.status] : olByIsbn.has(selected.isbn.replace(/[^0-9Xx]/g, "").toUpperCase()) ? "已缓存书目" : "未查询"}</dd>
-              <dt>原始文件名</dt><dd>{selected.originalName}</dd>
-              <dt>建议文件名</dt><dd>{selected.proposedName}</dd>
-              <dt>识别提示</dt><dd>{selected.warnings?.join("；") || "无"}</dd>
-            </dl></section>
-            <details className="detail-section"><summary>更多书目与识别信息</summary>
+            </div></details> : null}
+            <details key={`${selected.id}-more`} className="detail-section"><summary>更多书目与识别信息</summary>
             <dl className="dl">
               <dt>封面来源</dt><dd>{selected.coverPreference === "title" ? "标题作者生成封面" : selected.kind === "pdf" || selected.coverIsFirstPage ? "原文首页（EPUB 为重排预览）" : "原书封面"}</dd>
               {selected.bookPageMetadata ? <><dt>题名页书名</dt><dd>{selected.bookPageMetadata.title}</dd><dt>题名页作者</dt><dd>{selected.bookPageMetadata.authors.join(" · ") || "未可靠提取"}</dd><dt>识别依据</dt><dd>前页 / 前章节第 {selected.bookPageMetadata.page} 项：{[...selected.bookPageMetadata.titleEvidence, ...selected.bookPageMetadata.authorEvidence].join(" / ")}</dd></> : null}

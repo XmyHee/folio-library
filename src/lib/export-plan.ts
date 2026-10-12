@@ -24,7 +24,7 @@ export function createExportPlan(books: DerivedBook[], options: ExportOptions) {
   }
   const entries: ExportEntry[] = books.map((book, index) => {
     if (options.excludePending && needsReview(book)) return { book, skipReason: "本次排除待审核书籍" };
-    if (book.markdownSource && book.status !== "ok") return {book,skipReason:"Markdown 转换失败，请重新转换后导出"};
+    if (book.markdownSource && book.status !== "ok") return {book,skipReason:"Markdown 转换失败，请重新导入后导出"};
     if (book.kind !== "pdf" && book.kind !== "epub") return { book, skipReason: "不支持的文件格式" };
     const duplicate = book.role === "duplicate" || book.role === "identical";
     if (duplicate && !options.includeDuplicates) return { book, skipReason: "本次不包含重复副本" };

@@ -839,12 +839,15 @@ details.detail-section { display: block; }
 @media (max-width: 900px) { body:has(.detail-open) { overflow: hidden; } }
 .pagination { scroll-margin-top: 5rem; }
 
-/* Markdown print controls stay inside the existing intake flow. */
-.markdown-options { margin: 1rem 0; padding: 1rem 1.25rem; border: 1px solid var(--border); border-radius: 12px; }
-.markdown-options summary { cursor: pointer; font-weight: 600; }
-.markdown-options-grid { border: 0; padding: .75rem 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .9rem; }
-.markdown-options-grid label { display: flex; flex-direction: column; gap: .35rem; min-width: 0; }
-.markdown-options-grid .toggle { flex-direction: row; align-items: center; }
-.markdown-options-grid input:not([type=checkbox]), .markdown-options-grid select, .markdown-options-grid textarea { box-sizing: border-box; width: 100%; }
-.markdown-css { grid-column: 1 / -1; }
-@media(max-width: 640px) { .markdown-options-grid { grid-template-columns: 1fr; } }
+/* Expandable details use a shared body spacing and clear section hierarchy. */
+.detail-section { margin-top: 1rem; padding-top: 1rem; }
+.detail-section summary { padding: .35rem 0; font-size: .95rem; }
+.detail-section summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
+.detail-section-body { display: grid; gap: .75rem; padding-top: .8rem; }
+.detail-section-body > .hint, .detail-section-body > .dl { margin: 0; }
+.detail-section-body > .actions:empty { display: none; }
+.detail-fields > .detail-cover-fields { margin-top: 0; }
+.detail-section-body .detail-color-row { margin: 0; }
+.detail-saved { margin-left: .65rem; font-size: .75rem; font-weight: 400; color: var(--muted); }
+.dialog textarea.search { min-height: 5.5rem; width: 100%; box-sizing: border-box; }
+.detail-section .dl dd { min-width: 0; overflow-wrap: anywhere; }

@@ -9,7 +9,7 @@ async function loadFont(){
     if(!response.ok)throw new Error("中文字体加载失败，请联网重试一次");
     const buffer=await response.arrayBuffer(),bytes=new Uint8Array(buffer);
     return bytes[0]===0x1f&&bytes[1]===0x8b ? new Response(new Blob([buffer]).stream().pipeThrough(new DecompressionStream("gzip"))).arrayBuffer() : buffer;
-  }))).catch(error=>{fontRequest=undefined;throw new Error(error?.name === "TimeoutError" ? "中文字体加载超时，请检查网络后重新转换" : "中文字体加载失败，请检查网络后重新转换");});
+  }))).catch(error=>{fontRequest=undefined;throw new Error(error?.name === "TimeoutError" ? "中文字体加载超时，请检查网络后重新导入" : "中文字体加载失败，请检查网络后重新导入");});
   return fontRequest;
 }
 

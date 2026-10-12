@@ -1,7 +1,6 @@
-import type { RefObject, ReactNode } from "react";
+import type { RefObject } from "react";
 import { filesFromInput } from "../lib/files";
 interface Props {
-  markdownOptions?:ReactNode;
   bookCount: number; busy: boolean; exporting: boolean; storageReady: boolean;
   olProgress: string | null; progress: {done:number; total:number; current?:string} | null;
   coverBatchRunning: boolean; canCancel: boolean; storageStatus: string; over: boolean;
@@ -9,7 +8,7 @@ interface Props {
   onCancel: () => void; onRetrySave: () => void; onClear: () => void;
   ingest: (files: ReturnType<typeof filesFromInput>) => Promise<void>;
 }
-export function ImportArea({markdownOptions, bookCount, busy, exporting, storageReady, olProgress, progress, coverBatchRunning, canCancel, storageStatus, over, fileRef, folderRef, onCancel, onRetrySave, onClear, ingest}: Props) {
+export function ImportArea({bookCount, busy, exporting, storageReady, olProgress, progress, coverBatchRunning, canCancel, storageStatus, over, fileRef, folderRef, onCancel, onRetrySave, onClear, ingest}: Props) {
   return (
     <>
 <div className="import-bar">
@@ -86,7 +85,6 @@ export function ImportArea({markdownOptions, bookCount, busy, exporting, storage
           />
         </div>
       </div>
-      {markdownOptions}
     </>
   );
 }

@@ -1,6 +1,3 @@
-import { useMarkdownSettings } from "./hooks/useMarkdownSettings";
-import { createMarkdownCommands } from "./commands/markdown";
-import { MarkdownOptions } from "./components/MarkdownOptions";
 import { createExportCommands } from "./commands/export";
 import { createCoversCommands } from "./commands/covers";
 import { createMetadataCommands } from "./commands/metadata";
@@ -36,7 +33,6 @@ import { runPipeline } from "./lib/pipeline";
 import { reviewKey, isReviewed, needsReview } from "./lib/review";
 
 export default function App() {
-  const {settings:markdownSettings,setSettings:setMarkdownSettings}=useMarkdownSettings();
   const {
     lookupResults, setLookupResults, lookupSummary, setLookupSummary,
     olProgress, setOlProgress, busy, setBusy,
@@ -101,7 +97,6 @@ export default function App() {
   }
 
   const { ingest } = createImportCommands(() => ({
-    markdownSettings,
     storageReady, importingRef, setError, setBusy, setOlProgress, setProgress, taskController,
     parseEpubBatch, useOnlineMeta, primaryIsbn, lookupIsbnBatch, setLookupResults, setOlByIsbn,
     setBooks, setQuery, setSelected, setTab,
@@ -140,7 +135,6 @@ export default function App() {
     exporting, setCsvDownloading, downloadCsv, batchBooks,
   }));
 
-  const {reconvert}=createMarkdownCommands(()=>({importingRef,taskController,storageReady,draftDirty,settings:markdownSettings,setBusy,setError,setProgress,setBooks,setSelected,namingMode,keepOverrides,useOnlineMeta,olByIsbn,parseBook,runPipeline}));
 
   const { over, fileRef, folderRef } = useFileIntake(storageReady, importingRef, ingest, setError);
 
@@ -156,7 +150,6 @@ export default function App() {
         canCancel={!!taskController.current} storageStatus={storageStatus} over={over}
         fileRef={fileRef} folderRef={folderRef} ingest={ingest}
         onCancel={() => { cancelTask(); setError("正在停止任务，等待当前步骤结束…"); }}
-        markdownOptions={<MarkdownOptions value={markdownSettings} onChange={setMarkdownSettings} disabled={busy || exporting || !storageReady}/>}
         onRetrySave={() => setSaveRetry(v => v + 1)} onClear={() => setShowClearConfirm(true)} />
       {busy && progress ? (
         <div className="progress">
@@ -378,7 +371,7 @@ export default function App() {
         setShowDraftPrompt={setShowDraftPrompt}
         draftDirty={draftDirty}
         storageReady={storageReady}
-        regenerateDocumentCover={regenerateDocumentCover} reconvertMarkdown={reconvert}
+        regenerateDocumentCover={regenerateDocumentCover}
         metadataTitleDraft={metadataTitleDraft}
         metadataAuthorsDraft={metadataAuthorsDraft}
         updateDetailDraft={updateDetailDraft}

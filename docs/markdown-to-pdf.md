@@ -6,9 +6,9 @@ Status: implemented in v1.2.0. Files are processed in the browser; no local help
 
 Use the existing Add Books, Add Folder or page-wide drop entry. `.md` and `.markdown` files convert before entering the normal PDF library. A mixed batch can contain PDF, EPUB, Markdown and bitmap assets. Image files in a Markdown batch support the documents and do not become library records. Unsupported book files still show their existing failure records.
 
-For relative images, import the containing folder, or select the Markdown and images together when they are in the same directory. Folder paths disambiguate matching filenames. Dragged folders retain their relative paths. A browser cannot read an unselected local path. Missing/ambiguous images produce a failed conversion record; import the complete folder to retry, or use **重新转换 PDF** when the needed assets were retained. This button uses current print settings and the saved source bytes. It does not reread an edited disk file: import the edited file to create a new source revision.
+For relative images, import the containing folder, or select the Markdown and images together when they are in the same directory. Folder paths disambiguate matching filenames. Dragged folders retain their relative paths. A browser cannot read an unselected local path. Missing/ambiguous images produce a failed conversion record; import the complete folder again to retry. Import an edited file to create a new source revision.
 
-The existing import area includes **MD 转 PDF 排版**: reading/compact theme, A4/A5/Letter, portrait/landscape, header/footer, page numbers and custom CSS. Changing these settings does not alter existing books until reconversion. No separate Markdown workspace is introduced.
+Markdown converts automatically through the existing import entries. There are no print-settings or reconversion controls. Imports use reading theme, portrait A4, an empty header and page-number footer; explicit YAML overrides remain supported. Legacy browser print preferences are no longer read. Existing PDFs remain unchanged; import the source again to regenerate them.
 
 The first conversion downloads approximately 13 MB of self-hosted Chinese font data, cached by the browser. It requires that the site/font resources be reachable at least once. Browser cache eviction or clearing site data can require a new download. No runtime request to a third-party font service is made. The parser and PDF worker load on demand.
 
@@ -68,7 +68,7 @@ This is an element-style mapping to the PDF layout engine, not a browser CSS imp
 | `font-style` | normal, italic (CJK upright fallback) |
 | `margin-top`, `margin-bottom` | 0–72 pt/px or unitless points |
 
-Unsupported rules are listed in conversion warnings and the normal review queue. Page dimensions/orientation are configured with controls or YAML rather than CSS. There is no promise of pixel-identical Obsidian theme output.
+Unsupported rules are listed in conversion warnings and the normal review queue. Page dimensions/orientation are configured with YAML rather than CSS. There is no promise of pixel-identical Obsidian theme output.
 
 ## Source, identity, persistence and export
 
@@ -84,9 +84,9 @@ MD limit: 5 MiB, 30,000 block tokens; each bitmap at most 20 MiB/40 million pixe
 
 - `lib/markdown/settings`, `model`, `assets`, `definition`, `render` and `render.worker`: preferences, YAML/token model, safe local assets, PDF definition, cancellable worker.
 - `lib/markdown/import`, `lib/import-batch`: source/PDF separation and shared intake.
-- `commands/markdown`: reconversion using the existing task lock and state owner.
+- `commands/markdown`: internal reconversion helper, without a user-facing action.
 - `check-markdown.cjs`: actual generated PDF/CJK text/fonts/pages/table headers/links, YAML/CSS/images, source identity, persistence, compact export integrity, failed exports, review/cover preservation and cancellation. Browser worker/picker/download checks complement this suite.
 
 Renderer: pdfmake 0.2.20 ([layout documentation](https://pdfmake.github.io/docs/0.1/document-definition-object/page/)); Markdown: marked 17.0.1; YAML: yaml 2.8.3. Font source: [Google Fonts Noto Sans SC](https://github.com/google/fonts/tree/main/ofl/notosanssc), SIL Open Font License, retained in `public/fonts`. The upstream variable font was instantiated at weights 400 and 700 with fonttools 4.66.1 and losslessly compressed with gzip and decompressed once with the browser native stream API; complete CJK coverage is retained and PDF embedding subsets used glyphs.
 
-The default header is empty; the old automatic `{title}` header preference is migrated to empty. Existing PDFs require reconversion to remove their already rendered headers. Explicit custom/YAML headers remain supported. Font gzip bytes are decompressed once before worker layout; PDF embedding uses the original TTF data.
+The default header is empty. Import the source again to remove an already rendered automatic header from a newly generated PDF. Explicit custom/YAML headers remain supported. Font gzip bytes are decompressed once before worker layout; PDF embedding uses the original TTF data.

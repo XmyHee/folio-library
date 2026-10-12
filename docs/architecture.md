@@ -35,7 +35,7 @@ The source books are the persistent truth. `runPipeline` derives display books a
 - The batch cancellation test now calls `createBookBatchParser` in `lib/book-batch`, with the same bounded-concurrency and partial-result assertions. `parse.ts` composes this public parser with the real format parser and cover services.
 - PDF preview ordering/size checks now exercise `readPdfFrontMatter`, including a 100 MiB record, metadata failure with retained preview, and preview failure with retained metadata. Tests no longer inspect parser source positions.
 - jsdom checks DOM and React behavior, not browser layout, real file-picker permissions, canvas rendering or download completion. Those require separate browser checks.
-- Markdown conversion is not available yet. It will enter the existing import command after renderer validation. Preserve a single task lock, metadata/source provenance and current export boundaries.
+- Markdown conversion enters the existing import command before the PDF workflow. Preserve a single task lock, metadata/source provenance and current export boundaries.
 
 ## Adding a feature
 
@@ -46,4 +46,4 @@ The source books are the persistent truth. `runPipeline` derives display books a
 
 ## Markdown import
 
-The existing import command passes Markdown files through lib/import-batch before normal PDF workflows. lib/markdown separates settings, YAML/CSS parsing, selected image assets, PDF node construction, pagination, worker rendering and import/reconversion. The worker owns CPU layout and is terminated on cancellation. Fresh layout passes avoid mutation of repeated table headers when preventing orphan headings. Source Markdown and selected assets are retained in the existing assets store and exported under Originals; source identity is independent of generated PDF bytes. commands/markdown preserves manual metadata, review and chosen covers on reconversion. MarkdownOptions is an inline collapsed settings panel, not a separate workspace.
+The existing import command passes Markdown files through lib/import-batch before normal PDF workflows. lib/markdown separates settings, YAML/CSS parsing, selected image assets, PDF node construction, pagination, worker rendering and import/reconversion. The worker owns CPU layout and is terminated on cancellation. Fresh layout passes avoid mutation of repeated table headers when preventing orphan headings. Source Markdown and selected assets are retained in the existing assets store and exported under Originals; source identity is independent of generated PDF bytes. commands/markdown preserves manual metadata, review and chosen covers on reconversion. The UI exposes only automatic intake; print controls and the reconversion action have been removed. Imports use default settings plus explicit document YAML, without legacy browser preferences.
