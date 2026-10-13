@@ -13,7 +13,8 @@ export const isMarkdownAsset = (file:File) => /\.(?:png|jpe?g|gif|webp|svg|avif|
 
 export async function convertMarkdown(file:File, files:File[], settings:MarkdownSettings, services:MarkdownImportServices, signal?:AbortSignal):Promise<ParsedBook>{
   checkCancelled(signal);
-  const sourceHash=await sha256(file),path=sourcePath(file);
+  // Reject oversized input before allocating a full-file hash buffer.
+  const sourceHash=file.size<=5*1024*1024?await sha256(file):"",path=sourcePath(file);
   const assets=new MarkdownAssets(file,files,signal);
   let parsed:ParsedBook|undefined;
   const base:ParsedBook={id:crypto.randomUUID(),file,originalName:file.name,relativePath:path,size:file.size,hash:sourceHash,

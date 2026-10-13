@@ -456,7 +456,10 @@ export async function parsePdf(file: File): Promise<ParsedBook> {
 export async function parseBook(file: File): Promise<ParsedBook> {
   let kind: "pdf" | "epub" | "other" = "other";
   let detectionError = "";
-  try { kind = await detectBookKind(file); }
+  try {
+    if (file.size > 256 * 1024 * 1024) detectionError = "文件超过 256 MiB 浏览器处理范围，请先拆分或使用本地工具处理";
+    else kind = await detectBookKind(file);
+  }
   catch (err) { detectionError = err instanceof Error ? err.message : "文件读取失败"; }
   if (kind !== "other") {
     const book = await (kind === "pdf" ? parsePdf(file) : parseEpub(file));

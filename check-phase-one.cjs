@@ -28,18 +28,20 @@ const base = {id:'a',file:new Blob(['original']),hash:'original',rawTitle:'Title
  assert.equal(detailDraftChanged(base,{...draft,title:'Changed'}),true);
  assert.equal(detailDraftChanged(base,{...draft,coverTitle:'Cover draft'}),true);
 
- // Exercise actual clear/undo handlers with a stateful hook harness.
+ // Permanent clear coordinates the shared lock; failed deletion leaves the view intact.
  const {createLibraryCommands}=require('./src/commands/library.ts');
- const state={books:[base],keepOverrides:{g:'a'},olByIsbn:new Map([['isbn',{title:'Catalog'}]]),exportReport:{succeeded:1},clearedLibrary:undefined,storageReady:true,importingRef:{current:false},exporting:false,busy:false,revokeCovers:()=>{throw Error('original previews revoked before undo window ended')}};
- for(const key of ['Books','KeepOverrides','OlByIsbn','ExportReport','ClearedLibrary']) state['set'+key]=value=>{const field=key[0].toLowerCase()+key.slice(1);state[field]=typeof value==='function'?value(state[field]):value;};
- for(const key of ['Selected','Query','CoverFilter','ReviewFilter','InformationFilter','Tab','Error','LookupResults','LookupSummary','ExportScope','ShowExportReview','ShowCoverBatchReview','ShowClearConfirm'])state['set'+key]=()=>{};
+ const state={books:[base],storageReady:true,importingRef:{current:false},exporting:false,busy:false};
+ const clearCalls=[];
+ for(const key of ['Selected','Query','CoverFilter','ReviewFilter','InformationFilter','Tab','Error','LookupResults','LookupSummary','ExportScope','ShowExportReview','ShowCoverBatchReview','ShowClearConfirm','CoverBatchResult','CheckedIds','BatchScope','Page'])state['set'+key]=value=>clearCalls.push([key,value]);
+ state.setBusy=value=>state.busy=value;state.clearDetailDrafts=()=>clearCalls.push(['drafts']);
+ let release;
+ state.clearLibrary=()=>new Promise(resolve=>{release=()=>{state.books=[];resolve();};});
  const actions=createLibraryCommands(()=>state);
- actions.clearAll();assert.equal(state.books.length,0);assert.equal(state.clearedLibrary.books[0].id,'a');
- await saveLibrary({version:1,books:state.books,namingMode:1,keepOverrides:state.keepOverrides,olByIsbn:state.olByIsbn,useOnlineMeta:false,includeDuplicates:true,clearedLibrary:state.clearedLibrary});
- const loaded=await loadLibrary();assert.equal(await loaded.clearedLibrary.books[0].file.text(),'original');
- state.books=[{...base,id:'new'}];actions.undoClear();assert.deepEqual(state.books.map(b=>b.id),['a','new']);assert.equal(state.clearedLibrary,undefined);assert.equal(state.keepOverrides.g,'a');
- actions.clearAll();state.clearedLibrary.expiresAt=Date.now()-1;actions.undoClear();assert.equal(state.books.length,0);
- await saveLibrary({version:1,books:[],namingMode:1,keepOverrides:{},olByIsbn:new Map(),useOnlineMeta:false,includeDuplicates:true,clearedLibrary:state.clearedLibrary});assert.equal((await loadLibrary()).clearedLibrary,undefined);
+ const clearing=actions.clearAll();assert.equal(state.importingRef.current,true);assert.equal(state.busy,true);
+ await actions.clearAll();assert.equal(state.books.length,1);assert.equal(clearCalls.some(([key])=>key==='drafts'),false);
+ release();await clearing;assert.equal(state.books.length,0);assert.equal(state.importingRef.current,false);assert.equal(state.busy,false);assert.ok(clearCalls.some(([key])=>key==='drafts'));
+ clearCalls.length=0;state.books=[base];state.clearLibrary=async()=>{throw Error('transaction aborted');};
+ await actions.clearAll();assert.equal(state.books.length,1);assert.ok(clearCalls.some(([key,value])=>key==='Error'&&/清空失败/.test(value)));assert.equal(clearCalls.some(([key])=>key==='drafts'),false);assert.equal(state.importingRef.current,false);
 
  // Mock providers: no network requests or uploaded books.
  let calls=0;global.fetch=async()=>{calls++;throw Error('temporary failure')};
@@ -56,5 +58,5 @@ const base = {id:'a',file:new Blob(['original']),hash:'original',rawTitle:'Title
  online.clearOpenLibraryCache();let active=0,peak=0;
  global.fetch=async()=>{active++;peak=Math.max(peak,active);await new Promise(resolve=>setTimeout(resolve,5));active--;return {ok:true,json:async()=>({})}};
  const results=[];await online.lookupIsbnBatch(['9780131103627','9780262033848','9781492051367'],undefined,2,{onResult:(isbn,result)=>results.push(result.status)});assert.ok(peak<=2);assert.equal(results.length,3);
- console.log('PASS shared view/CSV/export scope, independent review/issues, draft detection, actual clear/undo/new-import merge, durable undo/expiry, network failure recovery/negative cache/forced retry/body timeout/cancellation/bounded concurrency');
+ console.log('PASS shared view/CSV/export scope, independent review/issues, draft detection, atomic permanent clear/shared lock/failure preservation, network failure recovery/negative cache/forced retry/body timeout/cancellation/bounded concurrency');
 })().catch(error=>{console.error(error);process.exitCode=1});

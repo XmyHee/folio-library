@@ -2,7 +2,6 @@ import type { ParsedBook, NamingMode } from "./types";
 import type { OpenLibraryHit } from "./openlibrary";
 import { refreshTitleCover } from "./document-cover";
 
-export type ClearedLibrary = { books: ParsedBook[]; keepOverrides: Record<string, string>; olByIsbn: Map<string, OpenLibraryHit>; lastExport?: import("./export").ExportReport; expiresAt: number };
 export type LibrarySnapshot = {
   version: 1;
   books: ParsedBook[];
@@ -13,8 +12,9 @@ export type LibrarySnapshot = {
   includeDuplicates: boolean;
   exportSettings?: { noteTemplate: string; includeNotes: boolean };
   lastExport?: import("./export").ExportReport;
-  clearedLibrary?: ClearedLibrary;
 };
+
+type LegacySnapshot = LibrarySnapshot & { clearedLibrary?: unknown };
 
 function openDatabase(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -37,7 +37,7 @@ function openDatabase(): Promise<IDBDatabase> {
 export async function loadLibrary(): Promise<LibrarySnapshot | null> {
   const db = await openDatabase();
   try {
-    const stored = await new Promise<LibrarySnapshot | undefined>((resolve, reject) => {
+    const stored = await new Promise<LegacySnapshot | undefined>((resolve, reject) => {
       const tx = db.transaction(["library", "books", "assets"], "readonly");
       const settings = tx.objectStore("library").get("settings");
       const legacy = tx.objectStore("library").get("current");
@@ -46,11 +46,14 @@ export async function loadLibrary(): Promise<LibrarySnapshot | null> {
       tx.oncomplete = () => {
         if (!settings.result) { revision = 0; metadataCache.clear(); assetCache.clear(); resolve(legacy.result); return; }
         const value = settings.result;
+        if (!Array.isArray(value.bookIds)) { reject(new Error("书库索引无法识别，已保留原数据")); return; }
         revision = value.revision;
         const byId = new Map(assets.result.map(item => [item.id, item]));
         const byBook = new Map<string, ParsedBook>();
         metadataCache.clear(); assetCache.clear();
+        const activeIds = new Set<string>(value.bookIds);
         for (const record of records.result) {
+          if (!activeIds.has(record.id)) continue;
           const asset = byId.get(record.id);
           if (!asset) { reject(new Error("本地书籍文件不完整，已保留原数据")); return; }
           const { id: _id, ...blobs } = asset;
@@ -71,7 +74,7 @@ export async function loadLibrary(): Promise<LibrarySnapshot | null> {
           return book;
         });
         try {
-          resolve({ ...value, books: restore(value.bookIds), clearedLibrary: value.clearedLibrary ? { ...value.clearedLibrary, books: restore(value.clearedLibrary.bookIds) } : undefined });
+          resolve({ ...value, books: restore(value.bookIds) });
         } catch (error) { reject(error); }
       };
       tx.onabort = () => reject(tx.error ?? new Error("读取本地书库失败"));
@@ -83,6 +86,7 @@ export async function loadLibrary(): Promise<LibrarySnapshot | null> {
       || typeof stored.useOnlineMeta !== "boolean" || typeof stored.includeDuplicates !== "boolean") {
       throw new Error("本地书库版本或数据结构无法识别，已保留原数据");
     }
+    const { clearedLibrary: legacyUndo, ...activeSnapshot } = stored;
     const books: ParsedBook[] = [];
     try {
       for (const book of stored.books) {
@@ -106,15 +110,18 @@ export async function loadLibrary(): Promise<LibrarySnapshot | null> {
       }
       throw error;
     }
-    let clearedLibrary = stored.clearedLibrary;
-    if (clearedLibrary && clearedLibrary.expiresAt > Date.now()) {
-      if (!Array.isArray(clearedLibrary.books) || !(clearedLibrary.olByIsbn instanceof Map) || !clearedLibrary.keepOverrides) throw new Error("撤销记录不完整，已保留数据");
-      clearedLibrary = { ...clearedLibrary, books: clearedLibrary.books.map(book => {
-        if (!(book.file instanceof Blob) || !book.id) throw new Error("撤销原文件不完整");
-        return { ...book, coverUrl: book.coverBlob ? URL.createObjectURL(book.coverBlob) : undefined, titleCoverUrl: book.titleCoverBlob ? URL.createObjectURL(book.titleCoverBlob) : undefined };
-      }) };
-    } else clearedLibrary = undefined;
-    return { ...stored, books, clearedLibrary };
+    // Validate active books first; remove obsolete undo-only files before exposing the library.
+    if (legacyUndo !== undefined) {
+      try { await saveLibrary(activeSnapshot); }
+      catch (error) {
+        for (const book of books) {
+          if (book.coverUrl) URL.revokeObjectURL(book.coverUrl);
+          if (book.titleCoverUrl) URL.revokeObjectURL(book.titleCoverUrl);
+        }
+        throw error;
+      }
+    }
+    return { ...activeSnapshot, books };
   } finally {
     db.close();
   }
@@ -143,7 +150,7 @@ export async function saveLibrary(snapshot: LibrarySnapshot): Promise<void> {
       check.onsuccess = () => {
         if (check.result && check.result.revision !== revision) { conflict = true; tx.abort(); return; }
         const active = new Set<string>();
-        const all = [...(snapshot.clearedLibrary?.books ?? []), ...snapshot.books];
+        const all = snapshot.books;
         for (const book of all) {
           const { file, coverBlob, titleCoverBlob, coverUrl: _url, titleCoverUrl: _titleUrl, markdownSource, ...fields } = book;
           const record = {...fields, ...(markdownSource ? {markdownSource:{...markdownSource,file:undefined,assets:markdownSource.assets.map(({file:_asset,...asset})=>asset)}} : {})};
@@ -155,10 +162,16 @@ export async function saveLibrary(snapshot: LibrarySnapshot): Promise<void> {
           if (!previous || previous.file !== file || previous.coverBlob !== coverBlob || previous.titleCoverBlob !== titleCoverBlob
             || previous.markdownFile !== blobs.markdownFile || previous.markdownAssets !== blobs.markdownAssets) tx.objectStore("assets").put({ id: book.id, ...blobs }, book.id);
         }
-        const keys = tx.objectStore("books").getAllKeys();
-        keys.onsuccess = () => { for (const key of keys.result) if (!active.has(String(key))) { tx.objectStore("books").delete(key); tx.objectStore("assets").delete(key); } };
-        const { books: _books, clearedLibrary, ...settings } = snapshot;
-        store.put({ ...settings, revision: revision + 1, bookIds: snapshot.books.map(book => book.id), clearedLibrary: clearedLibrary ? { ...clearedLibrary, books: undefined, bookIds: clearedLibrary.books.map(book => book.id) } : undefined }, "settings");
+        for (const name of ["books", "assets"]) {
+          const data = tx.objectStore(name);
+          if (!active.size) data.clear();
+          else {
+            const keys = data.getAllKeys();
+            keys.onsuccess = () => { for (const key of keys.result) if (!active.has(String(key))) data.delete(key); };
+          }
+        }
+        const { books: _books, clearedLibrary: _obsoleteUndo, ...settings } = snapshot as LegacySnapshot;
+        store.put({ ...settings, revision: revision + 1, bookIds: snapshot.books.map(book => book.id) }, "settings");
         // Remove the legacy snapshot only in the same successful migration transaction.
         store.delete("current");
       };

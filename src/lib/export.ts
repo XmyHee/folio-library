@@ -1,7 +1,7 @@
 import JSZip from "jszip";
 import type { DerivedBook } from "./types";
 import { reviewReasons, isReviewed, needsReview } from "./review";
-import { createExportPlan } from "./export-plan";
+import { createExportPlan, MAX_ZIP_BYTES, ZIP_SIZE_MESSAGE } from "./export-plan";
 import type { ExportOptions } from "./export-plan";
 import { renderBookNote, noteTitle, noteAuthors } from "./notes";
 
@@ -134,6 +134,7 @@ export async function buildLibraryZip(books: DerivedBook[], opts: ExportOptions,
   zip.folder("Library");
   zip.folder("Originals");
   const records: ExportRecord[] = [];
+  let packageBytes = 0;
   const digest = async (bytes: Uint8Array) => Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes as Uint8Array<ArrayBuffer>))).map(b => b.toString(16).padStart(2, "0")).join("");
   for (const entry of plan.entries) {
     checkCancelled();
@@ -145,7 +146,7 @@ export async function buildLibraryZip(books: DerivedBook[], opts: ExportOptions,
     try {
       const source = new Uint8Array(await book.file.arrayBuffer());
       const duplicate = entry.path.startsWith("Originals/Duplicates/");
-      const output = duplicate ? source : await (await import("./embed-cover")).embedCover(book);
+      const output = duplicate ? source : await (await import("./embed-cover")).embedCover(book, source);
       const note = entry.notePath ? renderBookNote(book, opts.noteTemplate!, entry.path, entry.notePath) : undefined;
       const originals:{path:string;bytes:Uint8Array;hash:string}[]=[];
       for(const item of entry.sourceFiles??[]){
@@ -154,16 +155,22 @@ export async function buildLibraryZip(books: DerivedBook[], opts: ExportOptions,
         if(item.hash&&hash!==item.hash)throw new Error("Markdown 原件或附件校验不一致："+item.path);
         originals.push({path:item.path,bytes,hash});
       }
-      const sourceSha256 = originals.find(item=>item.path===entry.originalPath)?.hash ?? await digest(source), outputSha256 = await digest(output);
+      const sourceDigest = await digest(source);
+      const sourceSha256 = originals.find(item=>item.path===entry.originalPath)?.hash ?? sourceDigest, outputSha256 = output === source ? sourceDigest : await digest(output);
       const noteSha256 = note !== undefined ? await digest(new TextEncoder().encode(note)) : undefined;
       checkCancelled();
+      const entryBytes = output.byteLength + originals.reduce((sum,item)=>sum+item.bytes.byteLength,0)
+        + (entry.originalPath && !entry.sourceFiles ? source.byteLength : 0)
+        + (note === undefined ? 0 : new TextEncoder().encode(note).byteLength);
+      if (packageBytes + entryBytes > MAX_ZIP_BYTES) throw new RangeError(ZIP_SIZE_MESSAGE);
+      packageBytes += entryBytes;
       // Commit this book only after all its data, note and hashes have been prepared.
       zip.file(entry.path, output);
       if (entry.originalPath && !entry.sourceFiles) zip.file(entry.originalPath, source);
       for(const item of originals)zip.file(item.path,item.bytes);
       if (entry.notePath && note !== undefined) zip.file(entry.notePath, note);
       Object.assign(record, { status: "success", reason: undefined, file: entry.path, note: entry.notePath, original: entry.originalPath, sourceSha256, outputSha256, noteSha256 });
-    } catch (error) { record.status = "failed"; record.reason = String(error); }
+    } catch (error) { if (error instanceof RangeError && error.message === ZIP_SIZE_MESSAGE) throw error; record.status = "failed"; record.reason = String(error); }
     checkCancelled();
     records.push(record);
     await new Promise(resolve => setTimeout(resolve, 0));
@@ -189,7 +196,7 @@ export async function buildLibraryZip(books: DerivedBook[], opts: ExportOptions,
     const msg = err instanceof Error ? err.message : String(err);
     if (/array buffer allocation failed|out of memory|oom/i.test(msg)) {
       throw new Error(
-        "导出时内存不足。请取消「ZIP 中保留重复副本」，或分批导入后再导出。",
+        "导出时内存不足。请取消「ZIP 中保留重复副本」，或勾选较少书籍分批导出。",
       );
     }
     throw err;

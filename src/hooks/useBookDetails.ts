@@ -80,6 +80,14 @@ export function useBookDetails(books: DerivedBook[], busy: boolean, exporting: b
     return () => window.removeEventListener("beforeunload", warn);
   }, [draftDirty]);
 
+  function clearDetailDrafts() {
+    detailDrafts.current = {}; pendingDetail.current = null;
+    setSelectedId(null); setShowDraftPrompt(false);
+    setMetadataTitleDraft(""); setMetadataAuthorsDraft(""); setCoverTitleDraft(""); setCoverAuthorDraft("");
+    try { sessionStorage.removeItem("folio-detail-drafts"); }
+    catch { setError("书库已清空，但此标签页草稿未能清除，请关闭标签页。"); }
+  }
+
   return {
 
     selected, setSelected, metadataTitleDraft, setMetadataTitleDraft,
@@ -92,7 +100,7 @@ export function useBookDetails(books: DerivedBook[], busy: boolean, exporting: b
 
     currentDraft, draftDirty, metadataDirty, persistDraft,
 
-    updateDetailDraft,
+    updateDetailDraft, clearDetailDrafts,
 
   };
 }

@@ -10,8 +10,8 @@ function xml(text: string) {
   return doc;
 }
 /** Always derive exports from the untouched source; repeated exports cannot accumulate covers. */
-export async function embedCover(book: ParsedBook): Promise<Uint8Array> {
-  const source = new Uint8Array(await book.file.arrayBuffer());
+export async function embedCover(book: ParsedBook, sourceBytes?: Uint8Array): Promise<Uint8Array> {
+  const source = sourceBytes ?? new Uint8Array(await book.file.arrayBuffer());
   if (book.coverPreference !== "title") return source;
   if (!book.titleCoverBlob) throw new Error("生成封面缺失，请重新生成");
   const cover = book.coverStyleVersion === 2 ? book.titleCoverBlob : await refreshTitleCover(book);

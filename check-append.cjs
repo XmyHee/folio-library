@@ -34,5 +34,5 @@ const app = createImportCommands(()=>({storageReady:true,taskController:{current
  assert.equal(parses,count+1);
  assert.deepEqual(books.map(b=>b.id),['first','second','third','fourth']);
  await app.ingest([]); assert.equal(books.length,4);
- console.log('PASS: append imports, catalog merge, retained covers/overrides, failure preservation, overlap guard, empty input. Clear/undo covered by check-phase-one.cjs.');
+ console.log('PASS: append imports, catalog merge, retained covers/overrides, failure preservation, overlap guard, empty input. Permanent clear covered by check-phase-one.cjs.');
 })().catch(e=>{console.error(e);process.exitCode=1;});

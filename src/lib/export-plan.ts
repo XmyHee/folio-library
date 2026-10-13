@@ -2,6 +2,9 @@ import type { DerivedBook } from "./types";
 import { noteAuthors, noteTitle, unknownNoteVariables, renderBookNote } from "./notes";
 import { needsReview, reviewReasons } from "./review";
 
+export const MAX_ZIP_BYTES = 256 * 1024 * 1024;
+export const ZIP_SIZE_MESSAGE = "单次打包超过 256 MiB 安全范围，请勾选较少书籍分批导出，或取消包含重复副本。";
+
 export type ExportOptions = { includeDuplicates: boolean; includeNotes?: boolean; noteTemplate?: string; excludePending?: boolean };
 export type ExportEntry = { book: DerivedBook; path?: string; notePath?: string; originalPath?: string; sourceFiles?: {path:string;file:Blob;hash?:string}[]; skipReason?: string };
 export function safeExportName(name: string): string {
@@ -54,9 +57,23 @@ export function createExportPlan(books: DerivedBook[], options: ExportOptions) {
     try { renderBookNote(firstNote.book, options.noteTemplate, firstNote.path!, firstNote.notePath); }
     catch (error) { blockers.push(String(error)); }
   }
+  // Count every physical package copy, including retained originals and Markdown images.
+  let packageBytes = 0;
+  for (const entry of included) {
+    const fileBytes = entry.book.file instanceof Blob ? entry.book.file.size : 0;
+    packageBytes += fileBytes;
+    if (entry.originalPath && !entry.sourceFiles) packageBytes += fileBytes;
+    for (const item of entry.sourceFiles ?? []) packageBytes += item.file.size;
+    if (entry.book.coverPreference === "title" && !entry.path!.startsWith("Originals/Duplicates/")) packageBytes += (entry.book.titleCoverBlob?.size ?? 0) + 1024 * 1024;
+    if (entry.notePath && options.noteTemplate && !blockers.length) {
+      try { packageBytes += new TextEncoder().encode(renderBookNote(entry.book, options.noteTemplate, entry.path!, entry.notePath)).length; }
+      catch (error) { blockers.push(String(error)); }
+    }
+  }
+  if (packageBytes > MAX_ZIP_BYTES) blockers.push(ZIP_SIZE_MESSAGE);
   return { entries, blockers, adjustedNames,
     summary: { selected: books.length, files: included.length, notes: included.filter(e => e.notePath).length, duplicates: included.filter(e => e.path!.startsWith("Originals/Duplicates/")).length,
-      generatedCovers: included.filter(e => e.book.coverPreference === "title" && !e.path?.startsWith("Originals/Duplicates/")).length, skipped: entries.length - included.length, pending: included.filter(e => needsReview(e.book)).length, sourceBytes: included.reduce((sum,e)=>sum+e.book.size,0) },
+      generatedCovers: included.filter(e => e.book.coverPreference === "title" && !e.path?.startsWith("Originals/Duplicates/")).length, skipped: entries.length - included.length, pending: included.filter(e => needsReview(e.book)).length, packageBytes, sourceBytes: included.reduce((sum,e)=>sum+e.book.size,0) },
     issues,
   };
 }

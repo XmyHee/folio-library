@@ -26,7 +26,7 @@ import { downloadCsv, downloadLibraryZip } from "./lib/export";
 import type { ExportProgress } from "./lib/export";
 import { createExportPlan } from "./lib/export-plan";
 import { renderBookNote } from "./lib/notes";
-import { parseEpubBatch, parseBook, revokeCovers } from "./lib/parse";
+import { parseEpubBatch, parseBook } from "./lib/parse";
 import { lookupIsbnBatch } from "./lib/openlibrary";
 import { primaryIsbn } from "./lib/normalize";
 import { runPipeline } from "./lib/pipeline";
@@ -47,7 +47,7 @@ export default function App() {
     useOnlineMeta, setUseOnlineMeta, includeDuplicates, setIncludeDuplicates,
     includeNotes, setIncludeNotes, noteTemplate, setNoteTemplate,
     exportReport, setExportReport, keepOverrides, setKeepOverrides,
-    olByIsbn, setOlByIsbn, clearedLibrary, setClearedLibrary,
+    olByIsbn, setOlByIsbn, clearLibrary,
     storageReady, storageStatus, setSaveRetry,
   } = useLibraryState(busy);
   const pipeline = useMemo(
@@ -61,7 +61,7 @@ export default function App() {
     coverAuthorDraft, setCoverAuthorDraft, showDraftPrompt, setShowDraftPrompt,
     detailPosition, openDetails, closeDetails, finishDetail,
     currentDraft, draftDirty, metadataDirty, persistDraft,
-    updateDetailDraft,
+    updateDetailDraft, clearDetailDrafts,
   } = useBookDetails(pipeline.books, busy, exporting, setError);
 
   const [showExportReview, setShowExportReview] = useState(false);
@@ -106,11 +106,10 @@ export default function App() {
     setLookupSummary, setBusy, setError, taskController, lookupIsbnBatch, setOlProgress,
     setLookupResults, setOlByIsbn,
   }));
-  const { clearAll, undoClear } = createLibraryCommands(() => ({
-    storageReady, importingRef, exporting, busy, clearedLibrary, revokeCovers, books,
-    setClearedLibrary, keepOverrides, olByIsbn, exportReport, setOlByIsbn, setBooks,
-    setKeepOverrides, setSelected, setQuery, setCoverFilter, setReviewFilter,
-    setInformationFilter, setTab, setError, setLookupResults, setLookupSummary, setExportReport,
+  const { clearAll } = createLibraryCommands(() => ({
+    storageReady, importingRef, exporting, busy, clearLibrary, setBusy,
+    setSelected, clearDetailDrafts, setCheckedIds, setBatchScope, setPage, setQuery, setCoverFilter, setReviewFilter,
+    setInformationFilter, setTab, setError, setLookupResults, setLookupSummary, setCoverBatchResult,
     setExportScope, setShowExportReview, setShowCoverBatchReview, setShowClearConfirm,
   }));
   const { saveReviewedMetadata, confirmMetadataReview } = createMetadataCommands(() => ({
@@ -171,8 +170,7 @@ export default function App() {
       {olProgress ? <p role="status">{olProgress}</p> : null}
       {lookupSummary ? <p role="status" className="hint">{lookupSummary}</p> : null}
       {Object.values(lookupResults).some(result => result.status === "failed" || result.status === "timeout") ? <p className="hint">部分查询失败或超时，可在整理规则中重试；已有书目不会清空。</p> : null}
-      {clearedLibrary ? <section className="panel" aria-label="清空撤销"><p>书库已清空，十分钟内可撤销；刷新后仍可恢复。期间新添书籍会保留。</p><button className="btn btn-secondary" disabled={busy || exporting || !storageReady} onClick={undoClear}>撤销清空</button></section> : null}
-      {showClearConfirm ? <section className="panel" role="alertdialog" aria-label="确认清空书库"><p>清空当前 {books.length} 本书籍？原始磁盘文件不受影响。十分钟内可撤销，之后撤销记录失效。</p><div className="actions"><button className="btn btn-secondary" disabled={busy || exporting} onClick={clearAll}>确认清空</button><button className="btn btn-ghost" onClick={() => setShowClearConfirm(false)}>取消</button></div></section> : null}
+      {showClearConfirm ? <section className="panel" role="alertdialog" aria-label="确认清空书库"><p>清空当前 {books.length} 本书籍？将删除此浏览器中的书籍、封面和整理记录，不保留撤销副本。磁盘原文件不受影响。</p><div className="actions"><button className="btn btn-secondary" disabled={busy || exporting} onClick={() => void clearAll()}>确认清空</button><button className="btn btn-ghost" disabled={busy || exporting} onClick={() => setShowClearConfirm(false)}>取消</button></div></section> : null}
       {error ? (
         <p className="alert" role="alert">
           {error}

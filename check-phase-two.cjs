@@ -8,7 +8,8 @@ global.IS_REACT_ACT_ENVIRONMENT = true;
 require.extensions['.ts'] = (module, filename) => module._compile(ts.transpileModule(fs.readFileSync(filename,'utf8'), {
   compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,esModuleInterop:true},
 }).outputText, filename);
-const {renderHook, act, waitFor, cleanup} = require('@testing-library/react');
+const {renderHook, render, act, waitFor, cleanup} = require('@testing-library/react');
+require.extensions['.tsx'] = (module, filename) => module._compile(ts.transpileModule(fs.readFileSync(filename,'utf8'), {compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,jsx:ts.JsxEmit.ReactJSX,esModuleInterop:true}}).outputText,filename);
 const React = require('react');
 const {useLibraryState} = require('./src/hooks/useLibraryState.ts');
 const {useBookDetails} = require('./src/hooks/useBookDetails.ts');
@@ -79,12 +80,25 @@ async function persistence() {
   storage.loadLibrary=()=>abandoned.promise;parser.revokeCovers=books=>released.push(...books.map(b=>b.id));
   h=renderHook(()=>useLibraryState(false));h.unmount();
   await act(async()=>{abandoned.resolve({...snapshot([book('abandoned')]),clearedLibrary:{books:[book('undo-abandoned')]}});await tick();});
-  assert.deepEqual(released,['abandoned','undo-abandoned']);assert.equal(writes,0);
-  storage.loadLibrary=async()=>snapshot([]);
-  h=renderHook(()=>useLibraryState(false));await waitFor(()=>assert.equal(h.result.current.storageReady,true));
-  act(()=>h.result.current.setClearedLibrary({books:[book('expired')],keepOverrides:{},olByIsbn:new Map(),expiresAt:Date.now()+10}));
-  await waitFor(()=>assert.equal(h.result.current.clearedLibrary,undefined));
-  assert.ok(released.includes('expired'));h.unmount();
+  assert.deepEqual(released,['abandoned']);assert.equal(writes,0);
+  // Clear waits behind earlier saves; no previews or active books disappear before commit.
+  const clearGate=deferred();let clearCalls=0;
+  storage.loadLibrary=async()=>snapshot([book('clear-target')]);
+  storage.saveLibrary=async value=>{clearCalls++;if(clearCalls===1)await clearGate.promise;saves.push(value);};
+  h=renderHook(()=>useLibraryState(false));await waitFor(()=>assert.equal(clearCalls,1));
+  let clearing;
+  act(()=>{clearing=h.result.current.clearLibrary();});
+  await act(tick);assert.equal(h.result.current.storageReady,false);assert.equal(clearCalls,1);assert.equal(h.result.current.books.length,1);
+  assert.equal(released.includes('clear-target'),false);
+  await act(async()=>{clearGate.resolve();await clearing;await tick();});
+  assert.equal(h.result.current.books.length,0);assert.ok(released.includes('clear-target'));
+  assert.equal(saves.at(-1).books.length,0);assert.equal(saves.at(-1).clearedLibrary,undefined);h.unmount();
+  storage.loadLibrary=async()=>snapshot([book('retain-after-failure')]);storage.saveLibrary=async()=>{};
+  h=renderHook(()=>useLibraryState(false));await waitFor(()=>assert.match(h.result.current.storageStatus,/已保存/));
+  storage.saveLibrary=async()=>{throw Error('clear quota failure');};
+  await act(async()=>{await assert.rejects(h.result.current.clearLibrary(),/quota/);});
+  assert.equal(h.result.current.books[0].id,'retain-after-failure');assert.equal(released.includes('retain-after-failure'),false);assert.equal(h.result.current.storageReady,true);h.unmount();
+
 }
 
 async function details() {
@@ -158,8 +172,19 @@ async function intake() {
 }
 
 (async()=>{
-  await persistence();await details();await tasksAndViews();await intake();
-  console.log('PASS actual React hook lifecycles: restoration gate/failure, serialized writes/retry/debounce, abandoned load URL cleanup, undo expiry, current/pending IDs, drafts/remount/StrictMode, dirty navigation/unload cleanup, cancellation without unlock, selection/pagination and fresh drop handlers');
+  await persistence();await details();
+  const drafts=renderHook(()=>useBookDetails(derive([book("clear-draft")]),false,false,()=>{}));
+  act(()=>drafts.result.current.openDetails(derive([book("clear-draft")])[0]));
+  act(()=>drafts.result.current.updateDetailDraft("title","Retained draft"));
+  assert.ok(sessionStorage.getItem("folio-detail-drafts"));
+  act(()=>drafts.result.current.clearDetailDrafts());
+  assert.equal(sessionStorage.getItem("folio-detail-drafts"),null);assert.equal(drafts.result.current.selected,null);assert.equal(drafts.result.current.draftDirty,false);drafts.unmount();
+  const {AppErrorBoundary}=require('./src/components/AppErrorBoundary.tsx');
+  function BrokenView(){throw Error('synthetic render failure');}
+  const fallback=render(React.createElement(AppErrorBoundary,null,React.createElement(BrokenView)),{onCaughtError:()=>{}});
+  assert.match(fallback.getByRole('alert').textContent,/已保存的书库/);assert.ok(fallback.getByRole('button',{name:'重新加载页面'}));fallback.unmount();
+  await tasksAndViews();await intake();
+  console.log('PASS actual React hook lifecycles: restoration gate/failure, serialized writes/retry/debounce, abandoned load URL cleanup, permanent clear queue/failure, current/pending IDs, drafts/remount/StrictMode, dirty navigation/unload cleanup, cancellation without unlock, selection/pagination and fresh drop handlers');
 })().catch(error=>{console.error(error);process.exitCode=1;}).finally(()=>{
   cleanup();storage.loadLibrary=original.load;storage.saveLibrary=original.save;parser.revokeCovers=original.revoke;dom.window.close();
 });

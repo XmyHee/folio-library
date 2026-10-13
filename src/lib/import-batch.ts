@@ -14,6 +14,8 @@ export function createImportBatchParser(services:BookBatchServices & {convertMar
       parseBook:async file=>isMarkdown(file)?(services.convertMarkdown??(await import("./markdown/import")).convertMarkdown)(file,files,settings,{parsePdf:services.parseBook},signal):services.parseBook(file),
       addDocumentCover:book=>book.markdownSource?Promise.resolve(book):services.addDocumentCover(book),
     });
-    return parser(records,onProgress,markdown?1:concurrency,signal);
+    // Avoid overlapping whole-file parsing buffers for large books.
+    const largeFiles = records.some(file => file.size >= 32 * 1024 * 1024);
+    return parser(records,onProgress,markdown || largeFiles ? 1 : concurrency,signal);
   };
 }
