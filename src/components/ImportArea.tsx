@@ -1,14 +1,15 @@
-import type { RefObject } from "react";
+import type { ReactNode, RefObject } from "react";
 import { filesFromInput } from "../lib/files";
 interface Props {
   bookCount: number; busy: boolean; exporting: boolean; storageReady: boolean;
-  olProgress: string | null; progress: {done:number; total:number; current?:string} | null;
+  olProgress: string | null; progress: {done:number; total:number; current:string} | null;
+  children?: ReactNode;
   coverBatchRunning: boolean; canCancel: boolean; storageStatus: string; over: boolean;
   fileRef: RefObject<HTMLInputElement | null>; folderRef: RefObject<HTMLInputElement | null>;
   onCancel: () => void; onRetrySave: () => void; onClear: () => void;
   ingest: (files: ReturnType<typeof filesFromInput>) => Promise<void>;
 }
-export function ImportArea({bookCount, busy, exporting, storageReady, olProgress, progress, coverBatchRunning, canCancel, storageStatus, over, fileRef, folderRef, onCancel, onRetrySave, onClear, ingest}: Props) {
+export function ImportArea({bookCount, busy, exporting, storageReady, coverBatchRunning, canCancel, storageStatus, over, fileRef, folderRef, onCancel, onRetrySave, onClear, ingest, children}: Props) {
   return (
     <>
 <div className="import-bar">
@@ -16,8 +17,8 @@ export function ImportArea({bookCount, busy, exporting, storageReady, olProgress
         <span>拖入页面任意位置追加</span>
         <button type="button" className="btn btn-primary" disabled={busy || exporting || !storageReady} onClick={() => fileRef.current?.click()}>添加书籍</button>
         <button type="button" className="btn btn-secondary" disabled={busy || exporting || !storageReady} onClick={() => folderRef.current?.click()}>添加文件夹</button>
-        {busy ? <span role="status">{olProgress || `正在处理 ${progress?.done ?? 0}/${progress?.total ?? 0}`}</span> : null}
         {(busy || exporting) && !coverBatchRunning && canCancel ? <button className="btn btn-ghost" onClick={onCancel}>停止任务</button> : null}
+        {children}
       </div>
       <div className="storage-status" role="status">
         <p>{storageStatus}</p>

@@ -4,8 +4,9 @@ Status: implementation notes for the second refactoring stage. These notes descr
 
 ## Dependency direction
 
-`App → components / hooks / commands → lib`
+`App → containers → components` and `App → hooks / commands → lib`
 
+- `containers/`: compose intake/task feedback, organizing rules and library browsing with typed props. Reuse existing hook state and command callbacks; no second store, task lock or persistence copy.
 - `components/`: render props and emit user actions. Do not open IndexedDB, parse books, or own a second library copy.
 - `hooks/`: own React state and resource lifetimes. Hooks do not import App or presentation components.
 - `lib/`: parsing, metadata resolution, naming, deduplication, storage, export and pure selectors. Library modules do not import hooks or components.
@@ -55,3 +56,9 @@ Clear is serialized through useLibraryState: wait for earlier saves, commit an e
 Exports reuse the source buffer for cover embedding and unchanged hashes. Preflight counts package copies (including retained Markdown/images); a 256 MiB content limit also applies to prepared output before committing entries to the ZIP. Large-book batches parse serially. The limits reduce memory pressure; they are not a device-independent crash guarantee. check-stability.cjs covers the resource boundaries without allocating oversized fixtures.
 
 AppErrorBoundary wraps the composed application. React render failures show a reload action without deleting browser storage; worker failures and browser/OS process crashes are outside this boundary.
+
+## Incremental containers and task feedback (2026-10-13)
+
+ImportContainer composes ImportArea with TaskProgress in the existing sticky top bar. RulesContainer owns rules/action presentation; LibraryContainer owns filtering, batch scope, pagination, cover-review presentation and results. App still composes the shared hooks/commands, export review and detail panel; remaining extraction is incremental.
+
+TaskProgress reads the existing task flags and callbacks. File preparation reports completed files, ZIP generation reports its own percentage, and unknown-duration work keeps an animated activity overlay. Import file counts are not time estimates. Markdown emits read/layout/render/generated-PDF-read stages through the batch callback. Online lookup does not reuse a completed import percentage. Feedback disappears on the existing finally cleanup, including failure or cancellation. Reduced-motion users receive static activity feedback and text. No timers simulate progress.

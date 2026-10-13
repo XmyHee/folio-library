@@ -11,8 +11,9 @@ export type MarkdownImportServices = {
 export const isMarkdown = (file:File) => /\.(?:md|markdown)$/i.test(file.name);
 export const isMarkdownAsset = (file:File) => /\.(?:png|jpe?g|gif|webp|svg|avif|css)$/i.test(file.name);
 
-export async function convertMarkdown(file:File, files:File[], settings:MarkdownSettings, services:MarkdownImportServices, signal?:AbortSignal):Promise<ParsedBook>{
+export async function convertMarkdown(file:File, files:File[], settings:MarkdownSettings, services:MarkdownImportServices, signal?:AbortSignal,onStage?:(stage:string)=>void):Promise<ParsedBook>{
   checkCancelled(signal);
+  onStage?.("读取 Markdown");
   // Reject oversized input before allocating a full-file hash buffer.
   const sourceHash=file.size<=5*1024*1024?await sha256(file):"",path=sourcePath(file);
   const assets=new MarkdownAssets(file,files,signal);
@@ -26,11 +27,14 @@ export async function convertMarkdown(file:File, files:File[], settings:Markdown
     const doc=readMarkdown(text,file.name,settings);
     Object.assign(base,{rawTitle:doc.title,authors:doc.authors,publisher:doc.publisher,language:doc.language,date:doc.date,description:doc.description,subjects:doc.subjects,identifiers:doc.isbn?[doc.isbn]:[],isbn:doc.isbn||undefined});
     base.markdownSource!.settings=doc.settings;
+    onStage?.("准备排版与图片");
     const {definition,warnings}=await buildMarkdownDefinition(doc,href=>assets.image(href),signal);
     checkCancelled(signal);
     const render=services.render ?? (await import("./render")).renderMarkdownPdf;
+    onStage?.("生成 PDF");
     const pdf=await render(definition,doc,signal);checkCancelled(signal);
     const generated=new File([pdf],file.name.replace(/\.(?:md|markdown)$/i,".pdf"),{type:"application/pdf",lastModified:0});
+    onStage?.("读取生成的 PDF");
     parsed=await services.parsePdf(generated);checkCancelled(signal);
     if(parsed.status!=="ok")throw new Error(parsed.error||"生成的 PDF 无法读取");
     // Identity is versioned source bytes plus sorted referenced assets, never renderer timestamps or PDF bytes.

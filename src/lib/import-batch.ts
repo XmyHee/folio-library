@@ -9,13 +9,15 @@ export function createImportBatchParser(services:BookBatchServices & {convertMar
   return async (files:File[],onProgress:(done:number,total:number,current:string)=>void,concurrency=2,signal?:AbortSignal,settings:MarkdownSettings=defaultMarkdownSettings)=>{
     const markdown=files.some(isMarkdown);
     const records=markdown?files.filter(file=>!isMarkdownAsset(file)):files;
+    let completed = 0;
+    const report = (done:number,total:number,current:string) => { completed = done; onProgress(done,total,current); };
     const parser=createBookBatchParser({
       ...services,
-      parseBook:async file=>isMarkdown(file)?(services.convertMarkdown??(await import("./markdown/import")).convertMarkdown)(file,files,settings,{parsePdf:services.parseBook},signal):services.parseBook(file),
+      parseBook:async file=>isMarkdown(file)?(services.convertMarkdown??(await import("./markdown/import")).convertMarkdown)(file,files,settings,{parsePdf:services.parseBook},signal,stage=>onProgress(completed,records.length,`${stage}：${file.name}`)):services.parseBook(file),
       addDocumentCover:book=>book.markdownSource?Promise.resolve(book):services.addDocumentCover(book),
     });
     // Avoid overlapping whole-file parsing buffers for large books.
     const largeFiles = records.some(file => file.size >= 32 * 1024 * 1024);
-    return parser(records,onProgress,markdown || largeFiles ? 1 : concurrency,signal);
+    return parser(records,report,markdown || largeFiles ? 1 : concurrency,signal);
   };
 }

@@ -851,3 +851,19 @@ details.detail-section { display: block; }
 .detail-saved { margin-left: .65rem; font-size: .75rem; font-weight: 400; color: var(--muted); }
 .dialog textarea.search { min-height: 5.5rem; width: 100%; box-sizing: border-box; }
 .detail-section .dl dd { min-width: 0; overflow-wrap: anywhere; }
+
+/* One sticky task display: measurements describe the current stage, motion shows activity. */
+.task-progress { flex: 1 0 100%; min-width: 0; border-top: 1px solid var(--border); padding-top: .65rem; }
+.task-progress-heading { display: flex; justify-content: space-between; gap: .75rem; font-size: .85rem; }
+.task-progress-heading strong { margin: 0; }
+.task-progress-heading span { color: var(--muted); font-variant-numeric: tabular-nums; }
+.task-progress-track { position: relative; height: 6px; overflow: hidden; border-radius: 999px; margin-top: .5rem; background: var(--border); }
+.task-progress-fill { position: absolute; inset: 0 auto 0 0; background: var(--accent); transition: width .2s ease; }
+.task-progress-running { position: absolute; inset: 0 auto 0 -35%; width: 35%; background: linear-gradient(90deg, transparent, var(--accent), transparent); animation: task-running 1.6s linear infinite; }
+.task-progress-current { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin: .4rem 0 0; color: var(--muted); font-size: .75rem; }
+.task-progress-hint { margin: .2rem 0 0; color: var(--faint); font-size: .75rem; }
+@keyframes task-running { to { transform: translateX(390%); } }
+@media (prefers-reduced-motion: reduce) {
+  .task-progress-running { animation: none; inset-inline-start: 35%; opacity: .65; }
+  .task-progress-fill { transition: none; }
+}
