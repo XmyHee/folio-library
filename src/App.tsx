@@ -142,10 +142,11 @@ export default function App() {
       {over ? <div className="drop-overlay" aria-hidden="true">松开即可追加书籍 · 已有书籍会保留</div> : null}
       <ImportContainer exportProgress={exportProgress} bookCount={books.length} busy={busy} exporting={exporting} storageReady={storageReady}
         olProgress={olProgress} progress={progress} coverBatchRunning={coverBatchRunning}
-        canCancel={!!taskController.current} storageStatus={storageStatus} over={over}
+        canCancel={!!taskController.current} storageStatus={storageStatus}
         fileRef={fileRef} folderRef={folderRef} ingest={ingest}
         onCancel={() => { cancelTask(); setError("正在停止任务，等待当前步骤结束…"); }}
-        onRetrySave={() => setSaveRetry(v => v + 1)} onClear={() => setShowClearConfirm(true)} />
+        onRetrySave={() => setSaveRetry(v => v + 1)} csvDownloading={csvDownloading} exportCsv={exportCsv}
+        onReviewExport={() => { setExportScope("filtered"); setShowExportReview(true); }} />
       {lookupSummary ? <p role="status" className="hint">{lookupSummary}</p> : null}
       {Object.values(lookupResults).some(result => result.status === "failed" || result.status === "timeout") ? <p className="hint">部分查询失败或超时，可在整理规则中重试；已有书目不会清空。</p> : null}
       {showClearConfirm ? <section className="panel" role="alertdialog" aria-label="确认清空书库"><p>清空当前 {books.length} 本书籍？将删除此浏览器中的书籍、封面和整理记录，不保留撤销副本。磁盘原文件不受影响。</p><div className="actions"><button className="btn btn-secondary" disabled={busy || exporting} onClick={() => void clearAll()}>确认清空</button><button className="btn btn-ghost" disabled={busy || exporting} onClick={() => setShowClearConfirm(false)}>取消</button></div></section> : null}
@@ -157,8 +158,7 @@ export default function App() {
 
       <RulesContainer bookCount={books.length} namingMode={namingMode} setNamingMode={setNamingMode}
         useOnlineMeta={useOnlineMeta} setUseOnlineMeta={setUseOnlineMeta} busy={busy} exporting={exporting}
-        storageReady={storageReady} csvDownloading={csvDownloading} retryCatalog={retryCatalog}
-        exportCsv={exportCsv} onReviewExport={() => { setExportScope("filtered"); setShowExportReview(true); }} />
+        storageReady={storageReady} retryCatalog={retryCatalog} onClear={() => setShowClearConfirm(true)} />
       {pipeline.stats.total > 0 ? (
         <>
           <LibraryStats stats={pipeline.stats} />

@@ -4,22 +4,26 @@ interface Props {
   bookCount: number; busy: boolean; exporting: boolean; storageReady: boolean;
   olProgress: string | null; progress: {done:number; total:number; current:string} | null;
   children?: ReactNode;
-  coverBatchRunning: boolean; canCancel: boolean; storageStatus: string; over: boolean;
+  coverBatchRunning: boolean; canCancel: boolean; storageStatus: string;
   fileRef: RefObject<HTMLInputElement | null>; folderRef: RefObject<HTMLInputElement | null>;
-  onCancel: () => void; onRetrySave: () => void; onClear: () => void;
+  onCancel: () => void; onRetrySave: () => void;
+  csvDownloading: boolean; exportCsv: () => void; onReviewExport: () => void;
   ingest: (files: ReturnType<typeof filesFromInput>) => Promise<void>;
 }
-export function ImportArea({bookCount, busy, exporting, storageReady, coverBatchRunning, canCancel, storageStatus, over, fileRef, folderRef, onCancel, onRetrySave, onClear, ingest, children}: Props) {
+export function ImportArea({bookCount, busy, exporting, storageReady, coverBatchRunning, canCancel, storageStatus, fileRef, folderRef, onCancel, onRetrySave, csvDownloading, exportCsv, onReviewExport, ingest, children}: Props) {
   return (
     <>
-<div className="import-bar">
-        <strong>Folio · {bookCount} 本</strong>
-        <span>拖入页面任意位置追加</span>
-        <button type="button" className="btn btn-primary" disabled={busy || exporting || !storageReady} onClick={() => fileRef.current?.click()}>添加书籍</button>
-        <button type="button" className="btn btn-secondary" disabled={busy || exporting || !storageReady} onClick={() => folderRef.current?.click()}>添加文件夹</button>
-        {(busy || exporting) && !coverBatchRunning && canCancel ? <button className="btn btn-ghost" onClick={onCancel}>停止任务</button> : null}
+<nav className="import-bar" aria-label="书库操作">
+        <div className="workspace-identity"><strong>Folio</strong><span>{bookCount} 本</span></div>
+        <div className="workspace-actions">
+          <div className="workspace-export" role="group" aria-label="导出文件">
+            <button type="button" className="btn btn-secondary" disabled={!bookCount || csvDownloading || busy || exporting || !storageReady} onClick={exportCsv}>{csvDownloading ? "已发起下载" : "导出 CSV"}</button>
+            <button type="button" className="btn btn-primary" aria-label="检查并导出书库与笔记" title="检查并导出书库与笔记" disabled={!bookCount || exporting || busy || !storageReady} onClick={onReviewExport}>{exporting ? "打包中…" : "检查并导出"}</button>
+          </div>
+        </div>
+        {(busy || exporting) && !coverBatchRunning && canCancel ? <button className="btn btn-ghost workspace-cancel" onClick={onCancel}>停止任务</button> : null}
         {children}
-      </div>
+      </nav>
       <div className="storage-status" role="status">
         <p>{storageStatus}</p>
         <p className="hint">书籍文件与封面保存在当前浏览器。清除网站数据会移除书库；不同浏览器或网址不共享。请保留导出备份。</p>
@@ -37,33 +41,14 @@ export function ImportArea({bookCount, busy, exporting, storageReady, coverBatch
         <p className="hint">导入 → 整理与审核 → 检查并导出</p>
       </header>
 
-      <div className={`panel import-panel ${bookCount ? "has-books" : ""}`}>
-        <div className={over ? "drop over" : "drop"}>
-          <h2>导入书籍，自动识别格式</h2>
-          <p>可分批追加 EPUB、PDF、MD 或整个文件夹，已有书籍会保留。MD 自动转换为 PDF；本地图片请随文件夹一起导入。</p>
-          <div className="actions">
-            <button
-              type="button"
-              className="btn btn-primary"
-              disabled={busy || exporting || !storageReady}
-              onClick={() => fileRef.current?.click()}
-            >
-              选择书籍文件
-            </button>
-            <button
-              type="button"
-              className="btn btn-secondary"
-              disabled={busy || exporting || !storageReady}
-              onClick={() => folderRef.current?.click()}
-            >
-              选择文件夹
-            </button>
-            {bookCount > 0 ? (
-              <button type="button" className="btn btn-ghost" disabled={busy || exporting || !storageReady} onClick={onClear}>
-                清空本地书库
-              </button>
-            ) : null}
-          </div>
+      <section className="panel intake-panel" aria-label="添加书籍">
+        {!bookCount ? <h2>导入书籍，自动识别格式</h2> : <h2>继续添加书籍</h2>}
+        <p>可分批追加 EPUB、PDF、MD 或整个文件夹，已有书籍会保留。MD 自动转换为 PDF；本地图片请随文件夹一起导入。也可拖入页面任意位置追加。</p>
+        <div className="actions">
+          <button type="button" className="btn btn-primary" disabled={busy || exporting || !storageReady} onClick={() => fileRef.current?.click()}>添加书籍</button>
+          <button type="button" className="btn btn-secondary" disabled={busy || exporting || !storageReady} onClick={() => folderRef.current?.click()}>添加文件夹</button>
+        </div>
+      </section>
           <input
             ref={fileRef}
             type="file"
@@ -84,8 +69,6 @@ export function ImportArea({bookCount, busy, exporting, storageReady, coverBatch
               e.target.value = "";
             }}
           />
-        </div>
-      </div>
     </>
   );
 }

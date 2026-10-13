@@ -2,13 +2,13 @@ import type { Dispatch, SetStateAction } from "react";
 interface Props {
   bookCount: number; namingMode: 1 | 2; setNamingMode: Dispatch<SetStateAction<1 | 2>>;
   useOnlineMeta: boolean; setUseOnlineMeta: Dispatch<SetStateAction<boolean>>;
-  busy: boolean; exporting: boolean; storageReady: boolean; csvDownloading: boolean;
-  retryCatalog: () => Promise<void>; exportCsv: () => void; onReviewExport: () => void;
+  busy: boolean; exporting: boolean; storageReady: boolean;
+  retryCatalog: () => Promise<void>; onClear: () => void;
 }
 export function RulesContainer({bookCount, namingMode, setNamingMode, useOnlineMeta, setUseOnlineMeta,
-  busy, exporting, storageReady, csvDownloading, retryCatalog, exportCsv, onReviewExport}: Props) {
+  busy, exporting, storageReady, retryCatalog, onClear}: Props) {
   return (
-  <section className="toolbar" aria-label="整理规则与导出">
+  <section className="toolbar" aria-label="整理规则">
     <div className="section-heading"><h2>整理规则</h2><p>CSV 与批量封面可切换当前结果或勾选项；导出前单独确认范围。</p></div>
     <div style={{ display: "flex", flexWrap: "wrap", gap: "0.75rem", alignItems: "center" }}>
       <div className="seg">
@@ -38,24 +38,7 @@ export function RulesContainer({bookCount, namingMode, setNamingMode, useOnlineM
       </label>
       {bookCount ? <button type="button" className="btn btn-ghost" disabled={busy || exporting || !storageReady || !useOnlineMeta} onClick={() => void retryCatalog()}>补全 / 重试当前列表</button> : null}
     </div>
-    {bookCount ? <div className="actions" style={{ marginTop: 0, justifyContent: "flex-start" }}>
-      <button
-        type="button"
-        className="btn btn-secondary"
-        disabled={csvDownloading || busy || exporting || !storageReady}
-        onClick={exportCsv}
-      >
-        {csvDownloading ? "已发起下载" : "导出 CSV"}
-      </button>
-      <button
-        type="button"
-        className="btn btn-primary"
-        disabled={exporting || busy || !storageReady}
-        onClick={onReviewExport}
-      >
-        {exporting ? "打包中…" : "检查并导出书库与笔记"}
-      </button>
-    </div> : null}
+    {bookCount ? <div className="library-maintenance"><button type="button" className="btn btn-ghost" disabled={busy || exporting || !storageReady} onClick={onClear}>清空本地书库</button></div> : null}
   </section>
   );
 }

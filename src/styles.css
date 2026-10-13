@@ -735,8 +735,7 @@ tr:last-child td {
   border-radius: var(--radius);
   box-shadow: 0 8px 24px #0005;
 }
-.import-bar > span { color: var(--muted); font-size: 0.8rem; }
-.import-bar strong { margin-right: auto; }
+
 .drop-overlay {
   position: fixed;
   inset: 0;
@@ -815,19 +814,12 @@ details.detail-section { display: block; }
 @media (max-width: 600px) {
   .app { padding-inline: .75rem; }
   .import-bar { gap: .5rem; padding: .65rem; }
-  .import-bar strong { flex-basis: 100%; }
-  .import-bar .btn { flex: 1; }
   .toolbar > .actions { width: 100%; margin-left: 0; }
   .toolbar > .actions .btn { flex: 1; height: auto; min-height: 2.75rem; }
   .library-controls { padding: 1rem; }
   .tabs button { height: auto; min-height: 2.5rem; padding: .5rem .65rem; white-space: normal; }
   .dialog { padding: 1.25rem; }
 }
-@media (max-width: 600px) { .import-bar > span:not([role]) { display: none; } }
-/* Compact import after the first batch; the fixed add bar remains available. */
-.import-panel.has-books h2, .import-panel.has-books .drop > p, .import-panel.has-books .actions > .btn:not(.btn-ghost) { display: none; }
-.import-panel.has-books .drop { padding: .25rem .75rem; }
-.import-panel.has-books .actions { margin: .25rem; justify-content: flex-end; }
 .selection-bar, .pagination { display: flex; flex-wrap: wrap; align-items: center; gap: .65rem; margin: .75rem 0; font-size: .8rem; }
 .selection-bar { padding: .75rem; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
 .selectable-row { display: flex; align-items: center; gap: .65rem; }
@@ -866,4 +858,23 @@ details.detail-section { display: block; }
 @media (prefers-reduced-motion: reduce) {
   .task-progress-running { animation: none; inset-inline-start: 35%; opacity: .65; }
   .task-progress-fill { transition: none; }
+}
+
+/* Sticky output actions; intake stays in the central explanatory panel. */
+.workspace-identity { display: flex; align-items: baseline; gap: .5rem; }
+.workspace-identity span { color: var(--muted); font-size: .8rem; white-space: nowrap; }
+.workspace-actions { margin-left: auto; min-width: 0; }
+.workspace-export { display: flex; gap: .5rem; }
+.workspace-cancel { margin-left: auto; }
+.intake-panel { padding: 1.25rem; margin-bottom: 1rem; }
+.intake-panel h2 { font-size: 1rem; margin: 0 0 .5rem; }
+.intake-panel p { color: var(--muted); font-size: .85rem; margin: 0; }
+.intake-panel .actions { justify-content: flex-start; }
+.library-maintenance { margin-left: auto; }
+@media (max-width: 600px) {
+  .workspace-identity { flex-basis: 100%; }
+  .workspace-actions { width: 100%; margin-left: 0; }
+  .workspace-export { display: grid; grid-template-columns: 1fr 1fr; gap: .5rem; }
+  .workspace-actions .btn { width: 100%; min-height: 2.75rem; height: auto; padding: .5rem; font-size: .8rem; }
+  .intake-panel .actions .btn { flex: 1; min-height: 2.75rem; }
 }

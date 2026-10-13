@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { formatBytes } from "../lib/files";
 import { prepareNoteTemplate, noteVariables } from "../lib/notes";
 import { defaultNoteTemplate } from "../lib/note-template";
@@ -14,9 +15,11 @@ interface Props {
   onExport:()=>void; onClose:()=>void;
 }
 export function ExportReviewPanel({exporting,busy,storageReady,exportScope,selectedCount,hasFailures,excludePending,includeDuplicates,includeNotes,exportPlan,noteTemplate,previewEntry,notePreview,setExportScope,setExcludePending,setIncludeDuplicates,setIncludeNotes,setNoteTemplate,setNotePreviewId,setError,onExport,onClose}: Props) {
+  const heading = useRef<HTMLHeadingElement>(null);
+  useEffect(() => { heading.current?.focus({ preventScroll: true }); heading.current?.scrollIntoView({ block: "center" }); }, []);
   return (
 <section className="panel" aria-label="导出前检查" style={{ padding: "1rem", marginBlock: "1rem" }}>
-            <h3>导出前检查</h3>
+            <h3 ref={heading} tabIndex={-1}>导出前检查</h3>
             <p className="hint">打包内容：README.md、结果 CSV、Library、Originals。笔记放入 Library/Notes，重复副本放入 Originals/Duplicates；不导出 JSON。</p>
             <label>导出范围 <select disabled={exporting} value={exportScope} onChange={event => setExportScope(event.target.value as typeof exportScope)}><option value="all">全部书籍</option><option value="selected">勾选书籍（{selectedCount} 本）</option><option value="filtered">当前列表（含视图与筛选）</option><option value="failed" disabled={!hasFailures}>上次失败项（使用当前书目）</option></select></label>
             <p><label><input type="checkbox" disabled={exporting} checked={excludePending} onChange={event => setExcludePending(event.target.checked)} />本次排除待审核书籍</label>　<label><input type="checkbox" disabled={exporting} checked={includeDuplicates} onChange={event => setIncludeDuplicates(event.target.checked)} />包含重复副本</label>　<label><input type="checkbox" disabled={exporting} checked={includeNotes} onChange={event => setIncludeNotes(event.target.checked)} />为保留书籍生成 Markdown 笔记</label></p>

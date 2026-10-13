@@ -41,9 +41,33 @@ const base = {busy:false,exporting:false,progress:null,exportProgress:null,olPro
   let mode=1, exports=0;
   const rules=render(React.createElement(RulesContainer,{bookCount:1,namingMode:1,setNamingMode:v=>mode=v,
     useOnlineMeta:false,setUseOnlineMeta:()=>{},busy:false,exporting:false,storageReady:true,csvDownloading:false,
-    retryCatalog:async()=>{},exportCsv:()=>exports++,onReviewExport:()=>{}}));
+    retryCatalog:async()=>{},onClear:()=>{}}));
   fireEvent.click(rules.getByRole('button',{name:'附丛书名'})); assert.equal(mode,2);
-  fireEvent.click(rules.getByRole('button',{name:'导出 CSV',exact:true})); assert.equal(exports,1);
+  assert.equal(rules.queryByRole('button',{name:'导出 CSV',exact:true}),null);
+  assert.ok(rules.getByRole('button',{name:'清空本地书库'}));
+  cleanup();
+  const {ImportArea}=require('./src/components/ImportArea.tsx');
+  let files=0,folders=0,reviews=0;
+  const topProps={bookCount:1,busy:false,exporting:false,storageReady:true,coverBatchRunning:false,canCancel:false,
+    storageStatus:'已保存',csvDownloading:false,fileRef:{current:{click:()=>files++}},folderRef:{current:{click:()=>folders++}},
+    onCancel:()=>{},onRetrySave:()=>{},exportCsv:()=>exports++,onReviewExport:()=>reviews++,ingest:async()=>{}};
+  const top=render(React.createElement(ImportArea,topProps));
+  const {within}=require('@testing-library/react');
+  assert.equal(within(top.getByRole('navigation',{name:'书库操作'})).queryByRole('button',{name:'添加书籍'}),null);
+  assert.equal(top.getAllByRole('button',{name:'添加书籍',exact:true}).length,1);
+  // Mounted hidden inputs own their refs; inspect the real chooser click rather than bypassing them.
+  topProps.fileRef.current.click=()=>files++; topProps.folderRef.current.click=()=>folders++;
+  fireEvent.click(top.getByRole('button',{name:'添加书籍',exact:true}));assert.equal(files,1);
+  fireEvent.click(top.getByRole('button',{name:'添加文件夹',exact:true}));assert.equal(folders,1);
+  fireEvent.click(top.getByRole('button',{name:'导出 CSV',exact:true}));assert.equal(exports,1);
+  fireEvent.click(top.getByRole('button',{name:'检查并导出书库与笔记'}));assert.equal(reviews,1);
+  assert.equal(top.queryByRole('button',{name:'选择书籍文件'}),null);
+  assert.equal(top.queryByRole('button',{name:'选择文件夹'}),null);
+  top.rerender(React.createElement(ImportArea,{...topProps,busy:true}));
+  assert.equal(top.getByRole('button',{name:'导出 CSV',exact:true}).disabled,true);
+  assert.equal(top.getByRole('button',{name:'添加书籍',exact:true}).disabled,true);
+  top.rerender(React.createElement(ImportArea,{...topProps,bookCount:0}));
+  assert.equal(top.getByRole('button',{name:'检查并导出书库与笔记'}).disabled,true);
   cleanup();
   const input={id:'one',file:new File(['pdf'],'One.pdf'),originalName:'One.pdf',relativePath:'One.pdf',size:3,
     hash:'one',status:'ok',kind:'pdf',rawTitle:'One',authors:['Author'],publisher:'',language:'en',identifiers:[],description:'',date:'',subjects:[],series:'',spineCount:1,hasZlibTag:false};
