@@ -1,5 +1,6 @@
 import type { ReactNode, RefObject } from "react";
 import { filesFromInput } from "../lib/files";
+import { ThemeSwitch } from "./ThemeSwitch";
 interface Props {
   bookCount: number; busy: boolean; exporting: boolean; storageReady: boolean;
   olProgress: string | null; progress: {done:number; total:number; current:string} | null;
@@ -38,7 +39,7 @@ export function ImportArea({bookCount, busy, exporting, storageReady, coverBatch
             整理 EPUB 与 PDF，核对书目、命名与重复项。文件在本机处理，不上传。
           </p>
         </div>
-        <p className="hint">导入 · 核对 · 导出</p>
+        <ThemeSwitch />
       </header>
 
       <section className={`panel intake-panel ${bookCount ? "has-books" : "is-empty"}`} aria-label="添加书籍">

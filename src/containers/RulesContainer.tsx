@@ -15,6 +15,7 @@ export function RulesContainer({bookCount, namingMode, setNamingMode, useOnlineM
         <button
           type="button"
           className={namingMode === 1 ? "active" : ""}
+          aria-pressed={namingMode === 1}
           onClick={() => setNamingMode(1)}
         >
           书名与作者
@@ -22,6 +23,7 @@ export function RulesContainer({bookCount, namingMode, setNamingMode, useOnlineM
         <button
           type="button"
           className={namingMode === 2 ? "active" : ""}
+          aria-pressed={namingMode === 2}
           onClick={() => setNamingMode(2)}
         >
           附丛书名
