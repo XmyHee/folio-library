@@ -42,8 +42,28 @@ jobs:
         with:
           path: dist
 
+  container-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Build container
+        run: docker build -t folio-smoke .
+      - name: Check static container
+        run: |
+          docker run -d --name folio-smoke -p 127.0.0.1:8080:8080 folio-smoke
+          docker cp folio-smoke:/usr/share/nginx/html/folio-library ./dist
+          curl --retry 15 --retry-connrefused --retry-delay 1 --fail http://127.0.0.1:8080/folio-library/ --output /dev/null
+          node deploy/check-static.mjs http://127.0.0.1:8080/folio-library/
+      - name: Stop validation container
+        if: always()
+        run: docker rm -f folio-smoke || true
+
   deploy:
-    needs: build
+    needs: [build, container-smoke]
     runs-on: ubuntu-latest
     environment:
       name: github-pages

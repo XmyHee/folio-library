@@ -2,7 +2,46 @@
 
 在浏览器中整理 EPUB / PDF 的轻量工具：识别书目、校正命名、比较重复项、补封面，并导出书籍与 Markdown 阅读笔记。
 
-[在线使用](https://questfrontiers.com/folio-library/) · [源代码](https://github.com/XmyHee/folio-library) · [发布记录](https://github.com/XmyHee/folio-library/actions/workflows/pages.yml)
+**本地优先 · 书籍文件零上传 · 私有书库**
+
+[在线使用](https://questfrontiers.com/folio-library/) · [一分钟演示](https://questfrontiers.com/folio-library/demo/) · [部署说明](docs/deployment.md) · [发布记录](https://github.com/XmyHee/folio-library/actions/workflows/pages.yml)
+
+[![Deploy to Netlify](https://www.netlify.com/img/deploy/button.svg)](https://app.netlify.com/start/deploy?repository=https://github.com/XmyHee/folio-library)
+
+文件解析、MD 转 PDF、封面和导出均在当前浏览器完成，书籍文件不上传到 Folio 或第三方转换服务器。无需账户、无需文件处理后端；书库保存在本机浏览器。可选 ISBN 补全会发送 ISBN，详见下方隐私说明。
+
+## 一分钟看懂 Folio
+
+[![Folio 深空灰工作台：三种格式、人工校正与批量选择](docs/media/workbench-dark.png)](https://questfrontiers.com/folio-library/demo/)
+
+[播放 60 秒演示](https://questfrontiers.com/folio-library/demo/) · [下载 MP4](public/demo/folio-demo.mp4)
+
+演示使用合成 EPUB / PDF / MD，展示自动转换、分批追加、人工审核与实际导出。中文内嵌字幕、无声，由实测画面剪辑；视频时长不代表实际处理速度。
+
+<details>
+<summary>明亮主题截图</summary>
+
+![Folio 明亮主题](docs/media/workbench-light.png)
+
+</details>
+
+## 为什么选择本地处理
+
+| 维度 | Folio | 云端转换工具（以 CloudConvert 为例） |
+| --- | --- | --- |
+| 文件与隐私 | 书籍文件留在当前浏览器；ISBN 查询可关闭 | 文件传输至云端处理，按服务方政策删除 |
+| 批量处理 | 文件夹导入、分批追加、跨筛选勾选、命名去重与结果追踪；受本机资源限制 | 使用云端资源，容量与处理限制由服务方规定 |
+| 离线 | 本地静态服务 / Docker 部署完成，关闭 ISBN 联网后可在无互联网环境处理 | 云端转换依赖网络 |
+| 适用任务 | EPUB / PDF 书库整理，MD 自动转 PDF 与阅读笔记导出 | 更广泛的文件格式转换 |
+
+对比的是处理方式，不表示所有网页工具都会上传文件。CloudConvert 的云端处理、传输和删除规则见其[官方安全说明](https://cloudconvert.com/security)（核对于 2026-10-13）。Folio 的“大批量”指分批整理书库，不是无限大小：列表每页 40 本，单次 ZIP 内容上限 256 MiB。在线站点未提供离线安装包或 Service Worker；不要依赖浏览器缓存承诺断网冷启动。
+
+## 快速部署
+
+- **静态托管**：点击上方 Netlify 按钮，按平台提示创建站点。仓库已配置根路径构建；GitHub Pages 默认保留 `/folio-library/`。第三方账户授权与费用由您在平台确认。
+- **Docker**：下载仓库或克隆后，在项目目录执行 `docker compose up --build -d`，打开 [localhost:8080](http://localhost:8080/)。首次构建需联网拉取镜像与依赖；之后的本地文件处理可离线运行。
+
+Docker 只提供静态页面，不接收或存储书籍文件。书库仍在浏览器的 IndexedDB 中；不同域名、端口或浏览器的书库不共享。详细操作、基础路径和验证方式见[部署说明](docs/deployment.md)。
 
 ## 使用流程
 

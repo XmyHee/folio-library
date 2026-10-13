@@ -1,0 +1,13 @@
+node_modules
+dist
+.git
+.env
+.env.*
+*.local
+*.pdf
+*.epub
+*.zip
+store-browser-fixtures
+demo-production
+md-test-results
+create-store-browser-fixtures.cjs
