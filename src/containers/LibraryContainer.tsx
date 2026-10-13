@@ -21,7 +21,7 @@ export function LibraryContainer({view, pipeline, busy, exporting, storageReady,
   const {query, setQuery, coverFilter, setCoverFilter, informationFilter, setInformationFilter, reviewFilter, setReviewFilter, tab, setTab, checkedIds, setCheckedIds, batchScope, setBatchScope, pageSize, setPage, toggleBook, filtered, renameBooks, duplicateBooks, visibleGroups, viewBooks, selectedBooks, batchBooks, coverCandidates, pageCount, currentPage, pageBooks, pageGroups} = view;
   return (<>
   <section className="library-controls" aria-label="书库搜索与筛选">
-  <div className="section-heading"><h2>浏览与审核</h2><p>搜索、审核状态和封面条件共同作用于下方列表。</p></div>
+  <div className="section-heading"><h2>浏览与审核</h2></div>
   <label className="search-label" htmlFor="library-search">搜索书库</label>
   <input
     id="library-search"
@@ -39,9 +39,9 @@ export function LibraryContainer({view, pipeline, busy, exporting, storageReady,
     <button className="btn btn-secondary" disabled={busy || exporting || !storageReady || !coverCandidates.length} onClick={() => setShowCoverBatchReview(true)}>批量生成封面（{coverCandidates.length} 本）</button>
     {coverBatchRunning ? <button className="btn btn-ghost" onClick={cancelCovers}>处理完当前文件后停止</button> : null}
   </div>
-  <p className="hint">PDF 默认保留原文首页；EPUB 保留原书封面。只有选择生成后才新增封面，不改动原页。当前批量范围 {batchBooks.length} 本。</p>
+  <p className="hint">封面生成后在导出时写入，原文件不变。当前批量范围 {batchBooks.length} 本。</p>
   {showCoverBatchReview ? <section className="panel" aria-label="批量封面范围" style={{ padding: "1rem" }}>
-    <p>将为所选范围中的 {coverCandidates.length} 本保留书籍新增封面，原页面完整保留。PDF 首页可能已含封面，请核对下面的范围。</p>
+    <p>为以下 {coverCandidates.length} 本生成封面。PDF 原页面保留；请先确认首页是否已有封面。</p>
     <ul style={{ maxHeight: "180px", overflow: "auto" }}>{coverCandidates.map(book => <li key={book.id}>{book.resolvedTitle || book.rawTitle || book.originalName} · {book.originalName}</li>)}</ul>
     <div className="actions"><button className="btn btn-primary" disabled={busy || exporting || !storageReady || !coverCandidates.length} onClick={() => void generateMissingCovers()}>生成这 {coverCandidates.length} 本</button><button className="btn btn-ghost" onClick={() => setShowCoverBatchReview(false)}>收起</button></div>
   </section> : null}
@@ -78,8 +78,8 @@ export function LibraryContainer({view, pipeline, busy, exporting, storageReady,
 
   <p className="view-summary" role="status">
     {tab === "audit" ? `全部 ${pipeline.stats.total} 本，当前显示 ${filtered.length} 本`
-      : tab === "rename" ? `待命名 ${pipeline.stats.willRename} / ${pipeline.stats.total} 本，当前显示 ${renameBooks.length} 本；仅列出保留书籍中建议文件名有变化的项目`
-      : `重复候选 ${duplicateBooks.length} / ${pipeline.stats.total} 本，共 ${pipeline.groups.length} 组，当前显示 ${visibleGroups.length} 组；每组完整展示，方便比较`}
+      : tab === "rename" ? `待命名 ${pipeline.stats.willRename} / ${pipeline.stats.total} 本，当前显示 ${renameBooks.length} 本；仅列出保留项`
+      : `重复候选 ${duplicateBooks.length} 本，共 ${pipeline.groups.length} 组；当前显示 ${visibleGroups.length} 个完整组`}
   </p>
   {query || coverFilter !== "all" || reviewFilter !== "all" || informationFilter !== "all" ? <div className="filter-summary"><span>当前条件：{informationFilter === "issues" ? "信息待补全 / 有异常 · " : informationFilter === "complete" ? "无已知异常 · " : ""}{query ? `搜索「${query}」 · ` : ""}{reviewFilter === "pending" ? "待审核" : reviewFilter === "reviewed" ? "已人工审核" : "全部审核状态"} · {coverFilter === "missing" ? "原文首页 / 无封面预览" : coverFilter === "generated" ? "生成封面" : coverFilter === "papers" ? "论文候选" : "全部封面"}</span><button type="button" className="btn btn-ghost" onClick={() => { setQuery(""); setCoverFilter("all"); setReviewFilter("all"); setInformationFilter("all"); }}>清除筛选</button></div> : null}
   </section>
@@ -106,7 +106,7 @@ export function LibraryContainer({view, pipeline, busy, exporting, storageReady,
   {pipeline.stats.failed > 0 ? (
     <p style={{ fontSize: "0.75rem", color: "var(--warn)", marginTop: "1rem" }}>
       {pipeline.stats.failed}{" "}
-      本无法可靠读取内部元数据，仍会按文件名参与命名，但不作为可靠书目。
+      本文件处理失败，请打开详情查看原因；建议书目仅供核对。
     </p>
   ) : null}
   </>);

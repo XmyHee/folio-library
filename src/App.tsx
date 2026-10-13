@@ -148,7 +148,7 @@ export default function App() {
         onRetrySave={() => setSaveRetry(v => v + 1)} csvDownloading={csvDownloading} exportCsv={exportCsv}
         onReviewExport={() => { setExportScope("filtered"); setShowExportReview(true); }} />
       {lookupSummary ? <p role="status" className="hint">{lookupSummary}</p> : null}
-      {Object.values(lookupResults).some(result => result.status === "failed" || result.status === "timeout") ? <p className="hint">部分查询失败或超时，可在整理规则中重试；已有书目不会清空。</p> : null}
+      {Object.values(lookupResults).some(result => result.status === "failed" || result.status === "timeout") ? <p className="hint">部分在线查询未完成，可在整理规则中重试。</p> : null}
       {showClearConfirm ? <section className="panel" role="alertdialog" aria-label="确认清空书库"><p>清空当前 {books.length} 本书籍？将删除此浏览器中的书籍、封面和整理记录，不保留撤销副本。磁盘原文件不受影响。</p><div className="actions"><button className="btn btn-secondary" disabled={busy || exporting} onClick={() => void clearAll()}>确认清空</button><button className="btn btn-ghost" disabled={busy || exporting} onClick={() => setShowClearConfirm(false)}>取消</button></div></section> : null}
       {error ? (
         <p className="alert" role="alert">
@@ -183,18 +183,18 @@ export default function App() {
         <div className="steps">
           <div className="step">
             <div className="n">01</div>
-            <h3>审计</h3>
-            <p>自动识别 EPUB / PDF，读取内部元数据；缺失字段回退到文件名，失败保留原因。</p>
+            <h3>导入</h3>
+            <p>读取书籍信息，MD 自动转为 PDF。</p>
           </div>
           <div className="step">
             <div className="n">02</div>
-            <h3>命名</h3>
-            <p>模式1：清洗书名；模式2：有丛书元数据则附加（丛书名）。</p>
+            <h3>核对</h3>
+            <p>校正书名与作者，确认命名和重复项。</p>
           </div>
           <div className="step">
             <div className="n">03</div>
-            <h3>去重</h3>
-            <p>SHA-256 → ISBN → 精确书名作者 → 模糊书名；按质量分保留最优。</p>
+            <h3>导出</h3>
+            <p>检查范围，导出书籍、笔记与结果记录。</p>
           </div>
         </div>
       ) : null}

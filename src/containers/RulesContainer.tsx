@@ -9,7 +9,7 @@ export function RulesContainer({bookCount, namingMode, setNamingMode, useOnlineM
   busy, exporting, storageReady, retryCatalog, onClear}: Props) {
   return (
   <section className="toolbar" aria-label="整理规则">
-    <div className="section-heading"><h2>整理规则</h2><p>CSV 与批量封面可切换当前结果或勾选项；导出前单独确认范围。</p></div>
+    <div className="section-heading"><h2>整理规则</h2></div>
     <div style={{ display: "flex", flexWrap: "wrap", gap: "0.75rem", alignItems: "center" }}>
       <div className="seg">
         <button
@@ -17,7 +17,7 @@ export function RulesContainer({bookCount, namingMode, setNamingMode, useOnlineM
           className={namingMode === 1 ? "active" : ""}
           onClick={() => setNamingMode(1)}
         >
-          纯书名
+          书名与作者
         </button>
         <button
           type="button"
@@ -27,7 +27,7 @@ export function RulesContainer({bookCount, namingMode, setNamingMode, useOnlineM
           附丛书名
         </button>
       </div>
-      <label className="toggle" title="按 ISBN 查询在线书目，不上传书籍文件">
+      <label className="toggle" title="仅向 Google Books / Open Library 发送 ISBN，不上传书籍文件">
         <input
           type="checkbox"
           checked={useOnlineMeta}
@@ -36,7 +36,7 @@ export function RulesContainer({bookCount, namingMode, setNamingMode, useOnlineM
         />
         联网补全书目（ISBN）
       </label>
-      {bookCount ? <button type="button" className="btn btn-ghost" disabled={busy || exporting || !storageReady || !useOnlineMeta} onClick={() => void retryCatalog()}>补全 / 重试当前列表</button> : null}
+      {bookCount ? <button type="button" className="btn btn-ghost" disabled={busy || exporting || !storageReady || !useOnlineMeta} onClick={() => void retryCatalog()}>补全当前列表</button> : null}
     </div>
     {bookCount ? <div className="library-maintenance"><button type="button" className="btn btn-ghost" disabled={busy || exporting || !storageReady} onClick={onClear}>清空本地书库</button></div> : null}
   </section>

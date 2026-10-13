@@ -4,11 +4,11 @@ export function LibraryStats({ stats }: Props) {
   return (
 <div className="stats">
             <div className="stat">
-              <label>已扫描</label>
+              <label>书籍总数</label>
               <strong>{stats.total}</strong>
             </div>
             <div className="stat">
-              <label>将重命名</label>
+              <label>待命名</label>
               <strong>{stats.willRename}</strong>
             </div>
             <div className="stat">
@@ -16,11 +16,11 @@ export function LibraryStats({ stats }: Props) {
               <strong>{stats.duplicateGroups}</strong>
             </div>
             <div className="stat">
-              <label>将隔离</label>
+              <label>重复副本</label>
               <strong>{stats.toIsolate}</strong>
             </div>
             <div className="stat">
-              <span>Open Library</span>
+              <span>在线书目</span>
               <strong>{stats.fromOpenLibrary}</strong>
             </div>
             <div className="stat">

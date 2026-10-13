@@ -26,7 +26,7 @@ export function ImportArea({bookCount, busy, exporting, storageReady, coverBatch
       </nav>
       <div className="storage-status" role="status">
         <p>{storageStatus}</p>
-        <p className="hint">书籍文件与封面保存在当前浏览器。清除网站数据会移除书库；不同浏览器或网址不共享。请保留导出备份。</p>
+        <p className="hint">书库保存在当前浏览器，清除网站数据会移除记录与文件。请保留原件或导出备份。</p>
         {storageStatus.startsWith("保存失败") ? <button className="btn btn-secondary" onClick={onRetrySave}>重试保存</button> : null}
         {!storageReady && storageStatus.startsWith("恢复失败") ? <button className="btn btn-secondary" onClick={() => window.location.reload()}>重新恢复</button> : null}
       </div>
@@ -35,18 +35,21 @@ export function ImportArea({bookCount, busy, exporting, storageReady, coverBatch
           <p className="kicker">Folio</p>
           <h1>书籍整理工作台</h1>
           <p className="lead">
-            依次读取内部元数据、按书名与作者命名、再按指纹与书目去重。文件只在本机浏览器处理，不会上传。
+            整理 EPUB 与 PDF，核对书目、命名与重复项。文件在本机处理，不上传。
           </p>
         </div>
-        <p className="hint">导入 → 整理与审核 → 检查并导出</p>
+        <p className="hint">导入 · 核对 · 导出</p>
       </header>
 
-      <section className="panel intake-panel" aria-label="添加书籍">
-        {!bookCount ? <h2>导入书籍，自动识别格式</h2> : <h2>继续添加书籍</h2>}
-        <p>可分批追加 EPUB、PDF、MD 或整个文件夹，已有书籍会保留。MD 自动转换为 PDF；本地图片请随文件夹一起导入。也可拖入页面任意位置追加。</p>
+      <section className={`panel intake-panel ${bookCount ? "has-books" : "is-empty"}`} aria-label="添加书籍">
+        <div className={bookCount ? "intake-content" : "drop"}>
+        {!bookCount ? <h2>添加书籍，开始整理</h2> : <h2>继续添加书籍</h2>}
+        <p>拖入文件或文件夹，也可点击添加。支持 EPUB、PDF；MD 自动转为 PDF。</p>
+        {!bookCount ? <p className="intake-note">分批添加会保留已有书籍；MD 图片请随文件夹一起导入。</p> : null}
         <div className="actions">
           <button type="button" className="btn btn-primary" disabled={busy || exporting || !storageReady} onClick={() => fileRef.current?.click()}>添加书籍</button>
           <button type="button" className="btn btn-secondary" disabled={busy || exporting || !storageReady} onClick={() => folderRef.current?.click()}>添加文件夹</button>
+        </div>
         </div>
       </section>
           <input

@@ -221,7 +221,7 @@ export function LibraryResults({tab, filtered, pageBooks, renameBooks, allBooks,
                             }
                           >
                             <span className={`badge ${kept ? "badge-keep" : "badge-drop"}`}>
-                              {kept ? "保留" : "隔离"}
+                              {kept ? "已保留" : "设为保留"}
                             </span>
                           </button>
                         </div>

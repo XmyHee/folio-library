@@ -20,15 +20,15 @@ export function ExportReviewPanel({exporting,busy,storageReady,exportScope,selec
   return (
 <section className="panel" aria-label="导出前检查" style={{ padding: "1rem", marginBlock: "1rem" }}>
             <h3 ref={heading} tabIndex={-1}>导出前检查</h3>
-            <p className="hint">打包内容：README.md、结果 CSV、Library、Originals。笔记放入 Library/Notes，重复副本放入 Originals/Duplicates；不导出 JSON。</p>
+            <p className="hint">ZIP 包含说明、结果 CSV、Library 与 Originals；笔记和重复副本按下方设置包含。</p>
             <label>导出范围 <select disabled={exporting} value={exportScope} onChange={event => setExportScope(event.target.value as typeof exportScope)}><option value="all">全部书籍</option><option value="selected">勾选书籍（{selectedCount} 本）</option><option value="filtered">当前列表（含视图与筛选）</option><option value="failed" disabled={!hasFailures}>上次失败项（使用当前书目）</option></select></label>
             <p><label><input type="checkbox" disabled={exporting} checked={excludePending} onChange={event => setExcludePending(event.target.checked)} />本次排除待审核书籍</label>　<label><input type="checkbox" disabled={exporting} checked={includeDuplicates} onChange={event => setIncludeDuplicates(event.target.checked)} />包含重复副本</label>　<label><input type="checkbox" disabled={exporting} checked={includeNotes} onChange={event => setIncludeNotes(event.target.checked)} />为保留书籍生成 Markdown 笔记</label></p>
             <p role="status">当前选择 {exportPlan.summary.selected} 本；计划打包 {exportPlan.summary.files} 本，其中重复副本 {exportPlan.summary.duplicates} 本；笔记 {exportPlan.summary.notes} 篇；新增封面 {exportPlan.summary.generatedCovers} 本；排除 {exportPlan.summary.skipped} 本。源文件合计 {formatBytes(exportPlan.summary.sourceBytes)}；预计打包内容 {formatBytes(exportPlan.summary.packageBytes)}，单次上限 256 MiB（浏览器内存占用高于文件体积）。</p>
             <p className="hint">仍有 {exportPlan.summary.pending} 本待审核；{exportPlan.adjustedNames} 个输出名称已做长度、非法字符或重名处理，完整书名与作者保留在笔记和记录中。导出新 ZIP 不会覆盖您已编辑的本地笔记。</p>
             {exportPlan.issues.length ? <details><summary>查看缺失、冲突及解析问题（{exportPlan.issues.length} 本）</summary><ul>{exportPlan.issues.map(issue => <li key={issue.id}>{issue.name}：{issue.reasons.join("；")}</li>)}</ul></details> : null}
             <details><summary>查看实际打包路径</summary><ul style={{ maxHeight: 220, overflow: "auto" }}>{exportPlan.entries.map(entry => <li key={entry.book.id}>{entry.book.originalName} → {entry.path || entry.skipReason}{entry.notePath ? `；${entry.notePath}` : ""}</li>)}</ul></details>
-            {includeNotes ? <details open><summary>Markdown 模板与预览</summary>
-              <p className="hint">默认沿用你的阅读模板，书籍作者按列表保存。支持变量：{noteVariables.map(name => `{{${name}}}`).join("、")}。模板只填书目信息，阅读分析部分保持待填写。默认不追加结尾链接或 ID；需要时在模板中加入 {"{{FILE_LINK}}"} 或 {"{{BOOK_ID}}"}。</p>
+            {includeNotes ? <details><summary>笔记模板与预览</summary>
+              <p className="hint">模板填写书目，阅读内容由你补充。可用变量：{noteVariables.map(name => `{{${name}}}`).join("、")}。链接与 ID 按需加入 {"{{FILE_LINK}}"}、{"{{BOOK_ID}}"}。</p>
               <label>导入 Markdown 模板 <input type="file" accept=".md,.txt" disabled={exporting} onChange={async event => {
                 const file = event.target.files?.[0]; event.target.value = "";
                 if (!file) return;

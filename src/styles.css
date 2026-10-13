@@ -869,7 +869,11 @@ details.detail-section { display: block; }
 .intake-panel { padding: 1.25rem; margin-bottom: 1rem; }
 .intake-panel h2 { font-size: 1rem; margin: 0 0 .5rem; }
 .intake-panel p { color: var(--muted); font-size: .85rem; margin: 0; }
-.intake-panel .actions { justify-content: flex-start; }
+.intake-panel.has-books .actions { justify-content: flex-start; }
+.intake-panel.is-empty .drop { padding: 2.5rem 1rem; }
+.intake-panel.is-empty .drop h2 { font-size: 1.35rem; margin: .75rem 0 .5rem; font-weight: 500; }
+.intake-panel.is-empty .drop p { max-width: 32rem; margin-inline: auto; }
+.intake-panel.is-empty .intake-note { margin-top: .6rem; font-size: .75rem; color: var(--faint); }
 .library-maintenance { margin-left: auto; }
 @media (max-width: 600px) {
   .workspace-identity { flex-basis: 100%; }
