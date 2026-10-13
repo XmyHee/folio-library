@@ -4,4 +4,5 @@ suites.push('check-feature-commands.cjs');
 suites.push('check-markdown.cjs');
 suites.push('check-stability.cjs');
 suites.push('check-task-progress.cjs');
+suites.push('check-store.cjs');
 for(const suite of suites){console.log('\n'+suite);const result=spawnSync(process.execPath,[suite],{stdio:'inherit'});if(result.status!==0)process.exit(result.status||1)}

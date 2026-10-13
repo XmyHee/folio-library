@@ -1,28 +1,19 @@
-import { useEffect, useRef, useState } from "react";
-import type { ParsedBook, NamingMode } from "../lib/types";
-import type { ExportReport } from "../lib/export";
+import { useEffect } from "react";
+import { useFolioSlice, useFolioStoreApi } from "../state/folio-context";
 import { loadLibrary, saveLibrary } from "../lib/storage";
 import { revokeCovers } from "../lib/book-assets";
-import { prepareNoteTemplate } from "../lib/notes";
-import { defaultNoteTemplate } from "../lib/note-template";
 
-/** Sole owner of persisted book/settings state, restoration and serialized saves. */
+/** Sole persistence lifecycle adapter; all shared values live in the workbench store. */
 export function useLibraryState(busy: boolean) {
-  const [books, setBooks] = useState<ParsedBook[]>([]);
-  const [namingMode, setNamingMode] = useState<NamingMode>(1);
-  const [useOnlineMeta, setUseOnlineMeta] = useState(true);
-  const [includeDuplicates, setIncludeDuplicates] = useState(true);
-  const [includeNotes, setIncludeNotes] = useState(true);
-  const [noteTemplate, setNoteTemplate] = useState(() => prepareNoteTemplate(defaultNoteTemplate));
-  const [savedNoteTemplate, setSavedNoteTemplate] = useState(() => prepareNoteTemplate(defaultNoteTemplate));
-  const [exportReport, setExportReport] = useState<ExportReport | undefined>();
-  const [keepOverrides, setKeepOverrides] = useState<Record<string, string>>({});
-  const [olByIsbn, setOlByIsbn] = useState<Map<string, import("../lib/openlibrary").OpenLibraryHit>>(new Map());
-  const [storageReady, setStorageReady] = useState(false);
-  const [storageStatus, setStorageStatus] = useState("正在恢复本地书库…");
-  const [saveRetry, setSaveRetry] = useState(0);
-  const saveQueue = useRef<Promise<void>>(Promise.resolve());
-  const clearing = useRef(false);
+  const store = useFolioStoreApi();
+  const {
+    books, setBooks, namingMode, setNamingMode, useOnlineMeta, setUseOnlineMeta,
+    includeDuplicates, setIncludeDuplicates, includeNotes, setIncludeNotes,
+    noteTemplate, setNoteTemplate, savedNoteTemplate, setSavedNoteTemplate,
+    exportReport, setExportReport, keepOverrides, setKeepOverrides, olByIsbn, setOlByIsbn,
+    storageReady, setStorageReady, storageStatus, setStorageStatus, saveRetry, setSaveRetry,
+  } = useFolioSlice("library");
+  const { saveQueue, clearing } = store.getState().runtime;
 
   useEffect(() => {
     if (!storageReady || savedNoteTemplate === noteTemplate) return;
@@ -35,21 +26,15 @@ export function useLibraryState(busy: boolean) {
     let cancelled = false;
     void loadLibrary().then((snapshot) => {
       if (cancelled) { if (snapshot) { revokeCovers(snapshot.books);  } return; }
-      if (snapshot) {
-        setBooks(snapshot.books);
-        setNamingMode(snapshot.namingMode);
-        setKeepOverrides(snapshot.keepOverrides);
-        setOlByIsbn(snapshot.olByIsbn);
-        setUseOnlineMeta(snapshot.useOnlineMeta);
-        setIncludeDuplicates(snapshot.includeDuplicates);
-        if (snapshot.exportSettings) {
-          setNoteTemplate(snapshot.exportSettings.noteTemplate);
-          setSavedNoteTemplate(snapshot.exportSettings.noteTemplate);
-          setIncludeNotes(snapshot.exportSettings.includeNotes);
-        }
-        setExportReport(snapshot.lastExport);
-      }
-      setStorageReady(true);
+      store.setState(snapshot ? {
+        books: snapshot.books, namingMode: snapshot.namingMode, keepOverrides: snapshot.keepOverrides,
+        olByIsbn: snapshot.olByIsbn, useOnlineMeta: snapshot.useOnlineMeta,
+        includeDuplicates: snapshot.includeDuplicates, exportReport: snapshot.lastExport,
+        ...(snapshot.exportSettings ? {
+          noteTemplate: snapshot.exportSettings.noteTemplate, savedNoteTemplate: snapshot.exportSettings.noteTemplate,
+          includeNotes: snapshot.exportSettings.includeNotes,
+        } : {}), storageReady: true,
+      } : { storageReady: true });
     }).catch((error: unknown) => {
       if (!cancelled) setStorageStatus("恢复失败，已停止写入以保留原数据：" + String(error));
     });
@@ -74,6 +59,7 @@ export function useLibraryState(busy: boolean) {
 
   /** Drain earlier saves, then delete files and catalog in one committed transaction. */
   async function clearLibrary() {
+    const { storageReady, books, namingMode, useOnlineMeta, includeDuplicates, noteTemplate, includeNotes } = store.getState();
     if (!storageReady || clearing.current) throw new Error("本地书库尚未就绪");
     clearing.current = true;
     setStorageReady(false);
@@ -86,8 +72,7 @@ export function useLibraryState(busy: boolean) {
     saveQueue.current = operation;
     try {
       await operation;
-      setBooks([]); setKeepOverrides({}); setOlByIsbn(new Map()); setExportReport(undefined);
-      setSavedNoteTemplate(noteTemplate);
+      store.setState({ books: [], keepOverrides: {}, olByIsbn: new Map(), exportReport: undefined, savedNoteTemplate: noteTemplate });
       revokeCovers(previousBooks);
       setStorageStatus("本地书库已清空");
     } catch (error) {

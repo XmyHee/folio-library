@@ -1,16 +1,16 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import type { SetStateAction } from "react";
+import { useFolioSlice, useFolioStoreApi } from "../state/folio-context";
 import type { DerivedBook } from "../lib/types";
 import { savedDetailDraft, detailDraftChanged } from "../lib/detail-draft";
 import type { DetailDraft } from "../lib/detail-draft";
 
 /** Selected/pending IDs refer to the canonical derived library; drafts are tab-local. */
 export function useBookDetails(books: DerivedBook[], busy: boolean, exporting: boolean, setError: (message:string)=>void) {
-  const [coverTitleDraft, setCoverTitleDraft] = useState("");
-  const [coverAuthorDraft, setCoverAuthorDraft] = useState("");
-  const [showDraftPrompt, setShowDraftPrompt] = useState(false);
-
-  const detailDrafts = useRef<Record<string, DetailDraft>>({});
+  const { selectedId, setSelectedId, metadataTitleDraft, setMetadataTitleDraft,
+    metadataAuthorsDraft, setMetadataAuthorsDraft, coverTitleDraft, setCoverTitleDraft,
+    coverAuthorDraft, setCoverAuthorDraft, showDraftPrompt, setShowDraftPrompt } = useFolioSlice("detail");
+  const { detailDrafts, pendingDetail, detailPosition } = useFolioStoreApi().getState().runtime;
   useEffect(() => {
     try {
       const stored = JSON.parse(sessionStorage.getItem("folio-detail-drafts") || "{}");
@@ -20,8 +20,6 @@ export function useBookDetails(books: DerivedBook[], busy: boolean, exporting: b
     } catch { /* Optional drafts do not block the saved library. */ }
   }, []);
 
-  const pendingDetail = useRef<string | null>(null);
-  const detailPosition = useRef(0);
   function finishDetail() { setSelectedId(pendingDetail.current); setShowDraftPrompt(false); }
   function openDetails(book: DerivedBook) {
     if (busy || exporting) return;
@@ -29,7 +27,6 @@ export function useBookDetails(books: DerivedBook[], busy: boolean, exporting: b
     pendingDetail.current = book.id;
     if (draftDirty) setShowDraftPrompt(true); else finishDetail();
   }
-  const [selectedId, setSelectedId] = useState<string | null>(null);
   const selected = books.find(book => book.id === selectedId) ?? null;
   const selectedRef = useRef(selected);
   selectedRef.current = selected;
@@ -39,8 +36,6 @@ export function useBookDetails(books: DerivedBook[], busy: boolean, exporting: b
     setSelectedId(next?.id ?? null);
   }, []);
   useEffect(() => { if (selectedId && !selected) setSelectedId(null); }, [selectedId, selected]);
-  const [metadataTitleDraft, setMetadataTitleDraft] = useState("");
-  const [metadataAuthorsDraft, setMetadataAuthorsDraft] = useState("");
   useEffect(() => {
     if (!selected) return;
     const draft = detailDrafts.current[selected.id] ?? savedDetailDraft(selected);

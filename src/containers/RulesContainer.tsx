@@ -1,12 +1,14 @@
-import type { Dispatch, SetStateAction } from "react";
+import { memo } from "react";
+import { useFolioSelector } from "../state/folio-context";
 interface Props {
-  bookCount: number; namingMode: 1 | 2; setNamingMode: Dispatch<SetStateAction<1 | 2>>;
-  useOnlineMeta: boolean; setUseOnlineMeta: Dispatch<SetStateAction<boolean>>;
-  busy: boolean; exporting: boolean; storageReady: boolean;
   retryCatalog: () => Promise<void>; onClear: () => void;
 }
-export function RulesContainer({bookCount, namingMode, setNamingMode, useOnlineMeta, setUseOnlineMeta,
-  busy, exporting, storageReady, retryCatalog, onClear}: Props) {
+export const RulesContainer = memo(function RulesContainer({retryCatalog, onClear}: Props) {
+  const { bookCount, namingMode, setNamingMode, useOnlineMeta, setUseOnlineMeta, busy, exporting, storageReady } = useFolioSelector(s => ({
+    bookCount: s.books.length, namingMode: s.namingMode, setNamingMode: s.setNamingMode,
+    useOnlineMeta: s.useOnlineMeta, setUseOnlineMeta: s.setUseOnlineMeta, busy: s.busy,
+    exporting: s.exporting, storageReady: s.storageReady,
+  }));
   return (
   <section className="toolbar" aria-label="整理规则">
     <div className="section-heading"><h2>整理规则</h2></div>
@@ -43,4 +45,4 @@ export function RulesContainer({bookCount, namingMode, setNamingMode, useOnlineM
     {bookCount ? <div className="library-maintenance"><button type="button" className="btn btn-ghost" disabled={busy || exporting || !storageReady} onClick={onClear}>清空本地书库</button></div> : null}
   </section>
   );
-}
+});

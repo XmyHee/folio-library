@@ -1,13 +1,19 @@
 import type { ComponentProps } from "react";
 import { ImportArea } from "../components/ImportArea";
-import { TaskProgress, type TaskProgressProps } from "../components/TaskProgress";
+import { TaskProgress } from "../components/TaskProgress";
+import { useFolioSelector } from "../state/folio-context";
 
-type Props = Omit<ComponentProps<typeof ImportArea>, "children"> & Pick<TaskProgressProps, "exportProgress">;
+type Props = Pick<ComponentProps<typeof ImportArea>, "fileRef" | "folderRef" | "ingest" | "onCancel" | "onRetrySave" | "exportCsv" | "onReviewExport">;
 
 /** Compose intake and task feedback without duplicating task or persistence state. */
-export function ImportContainer({ exportProgress, ...props }: Props) {
-  return <ImportArea {...props}>
-    <TaskProgress busy={props.busy} exporting={props.exporting} progress={props.progress}
-      exportProgress={exportProgress} olProgress={props.olProgress} coverBatchRunning={props.coverBatchRunning} />
+export function ImportContainer(props: Props) {
+  const state = useFolioSelector(s => ({ bookCount: s.books.length, busy: s.busy, exporting: s.exporting,
+    storageReady: s.storageReady, olProgress: s.olProgress, progress: s.progress,
+    coverBatchRunning: s.coverBatchRunning, storageStatus: s.storageStatus,
+    csvDownloading: s.csvDownloading, exportProgress: s.exportProgress,
+    canCancel: !!s.runtime.taskController.current,
+  }));
+  return <ImportArea {...state} {...props}>
+    <TaskProgress {...state} />
   </ImportArea>;
 }

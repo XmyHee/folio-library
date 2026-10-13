@@ -8,9 +8,14 @@ global.IS_REACT_ACT_ENVIRONMENT = true;
 require.extensions['.ts'] = (module, filename) => module._compile(ts.transpileModule(fs.readFileSync(filename,'utf8'), {
   compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,esModuleInterop:true},
 }).outputText, filename);
-const {renderHook, render, act, waitFor, cleanup} = require('@testing-library/react');
+const {renderHook: baseRenderHook, render, act, waitFor, cleanup} = require('@testing-library/react');
 require.extensions['.tsx'] = (module, filename) => module._compile(ts.transpileModule(fs.readFileSync(filename,'utf8'), {compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,jsx:ts.JsxEmit.ReactJSX,esModuleInterop:true}}).outputText,filename);
 const React = require('react');
+const {FolioStoreProvider} = require('./src/state/FolioStoreProvider.tsx');
+function renderHook(callback, options={}) {
+  return baseRenderHook(callback, {...options, wrapper: ({children}) => React.createElement(FolioStoreProvider,null,children)});
+}
+
 const {useLibraryState} = require('./src/hooks/useLibraryState.ts');
 const {useBookDetails} = require('./src/hooks/useBookDetails.ts');
 const {useTaskState} = require('./src/hooks/useTaskState.ts');

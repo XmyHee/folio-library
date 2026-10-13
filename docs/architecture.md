@@ -1,26 +1,28 @@
 # Folio module ownership
 
-Status: implementation notes for the second refactoring stage. These notes describe current ownership; they do not change file formats or metadata-resolution rules.
+Status: implementation notes, updated for the incremental Zustand migration (2026-10-13). These notes describe current ownership; they do not change file formats or metadata-resolution rules.
 
 ## Dependency direction
 
-`App → containers → components` and `App → hooks / commands → lib`
+`App → containers → components`, `containers / hooks → state`, and `hooks → commands → lib`.
 
-- `containers/`: compose intake/task feedback, organizing rules and library browsing with typed props. Reuse existing hook state and command callbacks; no second store, task lock or persistence copy.
+- `state/`: one Zustand vanilla store per mounted workbench, supplied by FolioStoreProvider. Library, task, view, detail and workspace fields share that instance. Typed setters support functional updates against current state. Selectors cache derived pipelines/scopes; derived books are not written back into the source library.
+- `containers/`: compose intake/task feedback, rules, browsing, export and detail presentation. Subscribe to needed shared fields through shallow selectors. Props carry derived scopes and command/lifecycle callbacks, not a second store, task lock or persistence copy.
 - `components/`: render props and emit user actions. Do not open IndexedDB, parse books, or own a second library copy.
-- `hooks/`: own React state and resource lifetimes. Hooks do not import App or presentation components.
+- `hooks/`: adapt the shared store to resource lifetimes: restoration, serialized saves, template debounce, cancellation cleanup, draft/session protection and view effects. Local viewport, drag and theme state remain local. Hooks do not import App or presentation components.
 - `lib/`: parsing, metadata resolution, naming, deduplication, storage, export and pure selectors. Library modules do not import hooks or components.
-- `commands/`: application actions grouped into import, catalog, library, metadata, covers and export. Each factory accepts an explicit typed context getter and injectable services. Context is read when an action starts; asynchronous work keeps that invocation's inputs. Shared task refs remain owned by useTaskState. Hook imports here are type-only and do not invoke hooks or introduce runtime React dependencies.
-- `App.tsx`: composes hooks, components and feature commands; retains workspace display state and preview selectors. Business command bodies live in commands, not App.
+- `commands/`: actions grouped into import, catalog, library, metadata, covers and export. `createWorkbenchCommands` composes these factories with the canonical store and injectable services. Context, filters, checked scope and export plan are read when an action starts; asynchronous work keeps that invocation's inputs. Shared task refs belong to the store's runtime resource object. Hook imports here are type-only and do not invoke hooks or introduce runtime React dependencies.
+- `App.tsx`: mounts the provider and lifecycle adapters, derives the source pipeline and current browsing scope, and connects containers. Export preview composition lives in ExportContainer; command dependency composition lives in useFeatureCommands / commands/workbench.
 
 ## State and resource owners
 
 | Module | Owns | Rules for callers |
 | --- | --- | --- |
-| `useLibraryState` | Source books, persisted settings, export receipt, restore gate, save queue and template debounce | Change books/settings through returned setters. Never save a second snapshot from another hook. Wait for restoration before edits. |
-| `useBookDetails` | Selected/pending IDs, tab-local drafts, dirty navigation and unload guard | Read the selected record from the current derived library. Drafts do not change export data until a book command applies them. The updater ref is a compatibility bridge for existing commands, not a second persisted book record. |
-| `useTaskState` | Task flags, progress, shared operation lock, abort controller, batch-cover cancellation and CSV cooldown | Command handlers acquire the shared lock before work and release it in `finally`. Cancellation requests do not unlock an unfinished operation. Do not create a parallel controller in a feature hook. |
-| `useLibraryView` | Search, filters, checked IDs, batch scope, view and pagination | Use the returned scope for actions. Do not independently reconstruct filtered or selected book sets in components. Derived lists are never persisted. |
+| `state/folio-store` | Canonical books/settings, task flags/progress, search/filters/selection, detail fields/ID, export UI; per-instance runtime resources | A new provider gets a fresh instance. No singleton, localStorage persist middleware, duplicate library or database schema change. Files, Maps, Sets, promises and controllers must not be JSON-serialized. |
+| `useLibraryState` | Restore/save/delete lifecycle, using the store's restore gate, save queue and debounce state | The only persistence adapter. Publish restoration atomically. Wait for restoration before edits. Never save a second snapshot from another hook. |
+| `useBookDetails` | Draft/session lifecycle, dirty navigation and unload guard, using store IDs/fields/resources | Resolve selected ID from the current derived library. Drafts do not change export data until applied. The updater ref is a compatibility bridge, not another persisted book. |
+| `useTaskLifecycle` / `useTaskState` | Cancellation cleanup and CSV cooldown; read task state and runtime resources from the shared store | Mount lifecycle once at the root. Command handlers acquire the shared lock before work and release it in `finally`. Cancellation requests do not unlock unfinished operations. ImportContainer subscribes to progress directly. |
+| `useLibraryView` / `state/selectors` | Derive scopes from canonical source/view inputs; reset pagination and prune obsolete checked IDs | UI and commands use the same deriveLibraryView function. Commands read latest scopes at invocation. Progress/draft changes do not invalidate pipeline caches. Derived lists are never persisted. |
 | `useFileIntake` | Picker refs, window drag listeners and overlay | The current import callback is used after directory reads. Do not add a second global drop listener. Disposal prevents a late directory read from starting an import. |
 | `lib/book-assets` | Shared preview URL release function | Release obsolete preview URLs only; preserve original File/Blob content. Permanent clear releases active preview URLs only after the deletion transaction commits. |
 | `lib/storage` | IndexedDB schema, migration, atomic metadata/blob writes and stale-tab detection | Database v2 and LibrarySnapshot v1 are unchanged. Failure must remain visible; a failed restore must not authorize overwriting stored data. |
@@ -36,6 +38,7 @@ The source books are the persistent truth. `runPipeline` derives display books a
 - The batch cancellation test now calls `createBookBatchParser` in `lib/book-batch`, with the same bounded-concurrency and partial-result assertions. `parse.ts` composes this public parser with the real format parser and cover services.
 - PDF preview ordering/size checks now exercise `readPdfFrontMatter`, including a 100 MiB record, metadata failure with retained preview, and preview failure with retained metadata. Tests no longer inspect parser source positions.
 - jsdom checks DOM and React behavior, not browser layout, real file-picker permissions, canvas rendering or download completion. Those require separate browser checks.
+- `check-store.cjs` uses the real Zustand instance, lifecycle hooks and createWorkbenchCommands. STORE-01 checks consecutive imports; STORE-02 holds the cross-feature lock until cancelled parsing settles; STORE-03 verifies pending/failed restoration writes nothing; STORE-04 verifies failed clear retains books, receipt, checked IDs, drafts and active URLs, then permits a successful retry. Additional assertions cover provider isolation, latest CSV/export scopes, failed-export receipts and 100 progress updates with zero extra library-only subscriber renders.
 - Markdown conversion enters the existing import command before the PDF workflow. Preserve a single task lock, metadata/source provenance and current export boundaries.
 
 ## Adding a feature
@@ -44,6 +47,7 @@ The source books are the persistent truth. `runPipeline` derives display books a
 2. Let a feature command coordinate that logic with the existing shared task owner and source book state.
 3. Add only necessary controls to existing components. Keep UI-only state out of persistence.
 4. Test behavior through exported APIs. Do not introduce new tests that depend on App source positions or function text.
+5. Put shared state in the existing store with narrow subscriptions; keep local display state local. Use command ports for I/O. Do not mount a second persistence/task lifecycle in a container.
 
 ## Markdown import
 
@@ -59,7 +63,7 @@ AppErrorBoundary wraps the composed application. React render failures show a re
 
 ## Incremental containers and task feedback (2026-10-13)
 
-ImportContainer composes ImportArea with TaskProgress in the existing sticky top bar. RulesContainer owns rules/action presentation; LibraryContainer owns filtering, batch scope, pagination, cover-review presentation and results. App still composes the shared hooks/commands, export review and detail panel; remaining extraction is incremental.
+ImportContainer composes ImportArea with TaskProgress in the existing sticky top bar. RulesContainer owns rules/action presentation; LibraryContainer owns filtering, batch scope, pagination, cover-review presentation and results. The subsequent store migration adds ExportContainer and DetailContainer. App composes lifecycle adapters and containers; shared state comes from Zustand rather than independent useState copies.
 
 TaskProgress reads the existing task flags and callbacks. File preparation reports completed files, ZIP generation reports its own percentage, and unknown-duration work keeps an animated activity overlay. Import file counts are not time estimates. Markdown emits read/layout/render/generated-PDF-read stages through the batch callback. Online lookup does not reuse a completed import percentage. Feedback disappears on the existing finally cleanup, including failure or cancellation. Reduced-motion users receive static activity feedback and text. No timers simulate progress.
 

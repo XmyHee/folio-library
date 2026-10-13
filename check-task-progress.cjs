@@ -38,11 +38,14 @@ const base = {busy:false,exporting:false,progress:null,exportProgress:null,olPro
   const {LibraryContainer} = require('./src/containers/LibraryContainer.tsx');
   const {useLibraryView} = require('./src/hooks/useLibraryView.ts');
   const {runPipeline} = require('./src/lib/pipeline.ts');
-  let mode=1, exports=0;
-  const rules=render(React.createElement(RulesContainer,{bookCount:1,namingMode:1,setNamingMode:v=>mode=v,
-    useOnlineMeta:false,setUseOnlineMeta:()=>{},busy:false,exporting:false,storageReady:true,csvDownloading:false,
-    retryCatalog:async()=>{},onClear:()=>{}}));
-  fireEvent.click(rules.getByRole('button',{name:'附丛书名'})); assert.equal(mode,2);
+  const {FolioStoreProvider} = require('./src/state/FolioStoreProvider.tsx');
+  const {createFolioStore} = require('./src/state/folio-store.ts');
+  const store = createFolioStore();
+  store.setState({books:[{id:'rules'}],useOnlineMeta:false,storageReady:true});
+  const wrapper = ({children}) => React.createElement(FolioStoreProvider,{store},children);
+  let exports=0;
+  const rules=render(React.createElement(RulesContainer,{retryCatalog:async()=>{},onClear:()=>{}}),{wrapper});
+  fireEvent.click(rules.getByRole('button',{name:'附丛书名'})); assert.equal(store.getState().namingMode,2);
   assert.equal(rules.queryByRole('button',{name:'导出 CSV',exact:true}),null);
   assert.ok(rules.getByRole('button',{name:'清空本地书库'}));
   cleanup();
@@ -72,10 +75,10 @@ const base = {busy:false,exporting:false,progress:null,exportProgress:null,olPro
   const input={id:'one',file:new File(['pdf'],'One.pdf'),originalName:'One.pdf',relativePath:'One.pdf',size:3,
     hash:'one',status:'ok',kind:'pdf',rawTitle:'One',authors:['Author'],publisher:'',language:'en',identifiers:[],description:'',date:'',subjects:[],series:'',spineCount:1,hasZlibTag:false};
   const pipeline=runPipeline([input],1,{}, {online:false}); let opened='';
+  store.setState({books:[input]});
   function Harness(){const view=useLibraryView(pipeline);return React.createElement(LibraryContainer,{view,pipeline,
-    busy:false,exporting:false,storageReady:true,coverBatchRunning:false,coverBatchResult:null,showCoverBatchReview:false,
-    setShowCoverBatchReview:()=>{},cancelCovers:()=>{},generateMissingCovers:async()=>{},openDetails:b=>opened=b.id,setKeepOverrides:()=>{}});}
-  const library=render(React.createElement(Harness));
+    cancelCovers:()=>{},generateMissingCovers:async()=>{},openDetails:b=>opened=b.id});}
+  const library=render(React.createElement(Harness),{wrapper});
   fireEvent.click(library.getByRole('button',{name:'选择全库（1）'}));
   assert.ok(library.getAllByRole('checkbox',{name:'选择 One.pdf'}).every(box=>box.checked));
   fireEvent.click(library.getAllByRole('button',{name:/One.*Author/})[0]); assert.equal(opened,'one');

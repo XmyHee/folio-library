@@ -1,6 +1,6 @@
-import type { Dispatch, SetStateAction } from "react";
+import { memo } from "react";
+import { useFolioSelector } from "../state/folio-context";
 import type { useLibraryView } from "../hooks/useLibraryView";
-import type { useLibraryState } from "../hooks/useLibraryState";
 import type { useBookDetails } from "../hooks/useBookDetails";
 import type { PipelineResult } from "../lib/types";
 import type { CoverFilter } from "../lib/cover-workflow";
@@ -8,16 +8,18 @@ import { isReviewed, needsReview } from "../lib/review";
 import { LibraryResults } from "../components/LibraryResults";
 interface Props {
   view: ReturnType<typeof useLibraryView>; pipeline: PipelineResult;
-  busy: boolean; exporting: boolean; storageReady: boolean;
-  coverBatchRunning: boolean; coverBatchResult: string | null; showCoverBatchReview: boolean;
-  setShowCoverBatchReview: Dispatch<SetStateAction<boolean>>;
   cancelCovers: () => void; generateMissingCovers: () => Promise<void>;
   openDetails: ReturnType<typeof useBookDetails>["openDetails"];
-  setKeepOverrides: ReturnType<typeof useLibraryState>["setKeepOverrides"];
 }
-export function LibraryContainer({view, pipeline, busy, exporting, storageReady, coverBatchRunning,
-  coverBatchResult, showCoverBatchReview, setShowCoverBatchReview, cancelCovers,
-  generateMissingCovers, openDetails, setKeepOverrides}: Props) {
+export const LibraryContainer = memo(function LibraryContainer({view, pipeline, cancelCovers,
+  generateMissingCovers, openDetails}: Props) {
+  const { busy, exporting, storageReady, coverBatchRunning, coverBatchResult,
+    showCoverBatchReview, setShowCoverBatchReview, setKeepOverrides } = useFolioSelector(s => ({
+    busy: s.busy, exporting: s.exporting, storageReady: s.storageReady,
+    coverBatchRunning: s.coverBatchRunning, coverBatchResult: s.coverBatchResult,
+    showCoverBatchReview: s.showCoverBatchReview, setShowCoverBatchReview: s.setShowCoverBatchReview,
+    setKeepOverrides: s.setKeepOverrides,
+  }));
   const {query, setQuery, coverFilter, setCoverFilter, informationFilter, setInformationFilter, reviewFilter, setReviewFilter, tab, setTab, checkedIds, setCheckedIds, batchScope, setBatchScope, pageSize, setPage, toggleBook, filtered, renameBooks, duplicateBooks, visibleGroups, viewBooks, selectedBooks, batchBooks, coverCandidates, pageCount, currentPage, pageBooks, pageGroups} = view;
   return (<>
   <section className="library-controls" aria-label="书库搜索与筛选">
@@ -110,4 +112,4 @@ export function LibraryContainer({view, pipeline, busy, exporting, storageReady,
     </p>
   ) : null}
   </>);
-}
+});
