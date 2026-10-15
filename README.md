@@ -157,7 +157,7 @@ check-*.cjs / test.cjs       回归与存储验证
 
 当前项目入口为 `https://questfrontiers.com/folio-library/`，Vite 的 `base` 为 `/folio-library/`。部署到其他子目录时必须同步修改 `vite.config.ts`。使用 HTTPS，确保 Web Crypto 等浏览器功能可用。
 
-GitHub 仓库为 `XmyHee/folio-library`（旧地址 `folio-epub` 会跳转）。仓库 Pages 使用 GitHub Actions；推送 `main` 或手动运行 `pages.yml` 后，依次安装锁定依赖、检查类型、执行测试、构建 `dist` 并部署。检查失败不会进入部署步骤。
+GitHub 仓库为 `XmyHee/folio-library`。仓库 Pages 使用 GitHub Actions；推送 `main` 或手动运行 `pages.yml` 后，依次安装锁定依赖、检查类型、执行测试、构建 `dist` 并部署。检查失败不会进入部署步骤。
 
 发布前检查待提交文件，勿提交书籍原件、私人模板、下载包或本地测试页面。发布后核对 Actions 成功、实际网站及新资源加载，而不是只确认推送成功。静态站点升级不主动清空浏览器书库；再次打开后等待页面显示保存完成。
 
