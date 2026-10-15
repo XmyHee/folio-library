@@ -12,7 +12,7 @@
 
 ## 一分钟看懂 Folio
 
-[![Folio 深空灰工作台：三种格式、人工校正与批量选择](docs/media/workbench-dark.png)](https://questfrontiers.com/folio-library/demo/)
+<a href="https://questfrontiers.com/folio-library/demo/"><img src="public/favicon.svg" alt="Folio：播放 60 秒演示" width="80" height="80"></a>
 
 [播放 60 秒演示](https://questfrontiers.com/folio-library/demo/) · [下载 MP4](public/demo/folio-demo.mp4)
 
