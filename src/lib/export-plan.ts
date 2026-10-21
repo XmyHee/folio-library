@@ -3,10 +3,10 @@ import { noteAuthors, noteTitle, unknownNoteVariables, renderBookNote } from "./
 import { needsReview, reviewReasons } from "./review";
 
 export const MAX_ZIP_BYTES = 256 * 1024 * 1024;
-export const ZIP_SIZE_MESSAGE = "单次打包超过 256 MiB 安全范围，请勾选较少书籍分批导出，或取消包含重复副本。";
+export const ZIP_SIZE_MESSAGE = "单次打包超过 256 MiB 安全范围，单本书籍及其原件、附件无法拆开，请检查该书的封面和附件。";
 
 export type ExportOptions = { includeDuplicates: boolean; includeNotes?: boolean; noteTemplate?: string; excludePending?: boolean };
-export type ExportEntry = { book: DerivedBook; path?: string; notePath?: string; originalPath?: string; sourceFiles?: {path:string;file:Blob;hash?:string}[]; skipReason?: string };
+export type ExportEntry = { book: DerivedBook; path?: string; notePath?: string; originalPath?: string; sourceFiles?: {path:string;file:Blob;hash?:string}[]; skipReason?: string; packageBytes?: number };
 export function safeExportName(name: string): string {
   let safe = name.normalize("NFC").replace(/[<>:"/\\|?*\x00-\x1f\x7f]/g, "_").replace(/[. ]+$/, "").trim();
   if (!safe || /^\.+$/.test(safe)) safe = "未命名";
@@ -60,6 +60,7 @@ export function createExportPlan(books: DerivedBook[], options: ExportOptions) {
   // Count every physical package copy, including retained originals and Markdown images.
   let packageBytes = 0;
   for (const entry of included) {
+    const before = packageBytes;
     const fileBytes = entry.book.file instanceof Blob ? entry.book.file.size : 0;
     packageBytes += fileBytes;
     if (entry.originalPath && !entry.sourceFiles) packageBytes += fileBytes;
@@ -69,11 +70,30 @@ export function createExportPlan(books: DerivedBook[], options: ExportOptions) {
       try { packageBytes += new TextEncoder().encode(renderBookNote(entry.book, options.noteTemplate, entry.path!, entry.notePath)).length; }
       catch (error) { blockers.push(String(error)); }
     }
+    entry.packageBytes = packageBytes - before;
+    if (entry.packageBytes > MAX_ZIP_BYTES) blockers.push(entry.book.originalName + "：" + ZIP_SIZE_MESSAGE);
   }
-  if (packageBytes > MAX_ZIP_BYTES) blockers.push(ZIP_SIZE_MESSAGE);
+  const parts = blockers.some(message => message.includes(ZIP_SIZE_MESSAGE)) ? [] : partitionExportEntries(entries);
   return { entries, blockers, adjustedNames,
     summary: { selected: books.length, files: included.length, notes: included.filter(e => e.notePath).length, duplicates: included.filter(e => e.path!.startsWith("Originals/Duplicates/")).length,
-      generatedCovers: included.filter(e => e.book.coverPreference === "title" && !e.path?.startsWith("Originals/Duplicates/")).length, skipped: entries.length - included.length, pending: included.filter(e => needsReview(e.book)).length, packageBytes, sourceBytes: included.reduce((sum,e)=>sum+e.book.size,0) },
+      generatedCovers: included.filter(e => e.book.coverPreference === "title" && !e.path?.startsWith("Originals/Duplicates/")).length, skipped: entries.length - included.length, pending: included.filter(e => needsReview(e.book)).length, parts: parts.length, packageBytes, sourceBytes: included.reduce((sum,e)=>sum+e.book.size,0) },
     issues,
   };
+}
+
+/** Stable order; a book, its note, originals and assets always travel together. */
+export function partitionExportEntries(entries: ExportEntry[], limit = MAX_ZIP_BYTES): ExportEntry[][] {
+  const parts: ExportEntry[][] = [];
+  let part: ExportEntry[] = [], bytes = 0;
+  for (const entry of entries) {
+    if (!entry.path) continue;
+    const size = entry.packageBytes ?? 0;
+    if (size > limit) throw new RangeError(entry.book.originalName + "：" + ZIP_SIZE_MESSAGE);
+    if (part.length && bytes + size > limit) { parts.push(part); part = []; bytes = 0; }
+    part.push(entry); bytes += size;
+  }
+  if (part.length) parts.push(part);
+  // Exclusions appear once, in the first package's audit record.
+  if (parts.length) parts[0] = [...entries.filter(entry => !entry.path), ...parts[0]!];
+  return parts;
 }

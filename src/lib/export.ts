@@ -1,8 +1,8 @@
 import JSZip from "jszip";
 import type { DerivedBook } from "./types";
 import { reviewReasons, isReviewed, needsReview } from "./review";
-import { createExportPlan, MAX_ZIP_BYTES, ZIP_SIZE_MESSAGE } from "./export-plan";
-import type { ExportOptions } from "./export-plan";
+import { createExportPlan, partitionExportEntries, MAX_ZIP_BYTES, ZIP_SIZE_MESSAGE } from "./export-plan";
+import type { ExportOptions, ExportEntry } from "./export-plan";
 import { renderBookNote, noteTitle, noteAuthors } from "./notes";
 
 function csvCell(value: string | number | undefined | null): string {
@@ -110,7 +110,7 @@ export function downloadCsv(books: DerivedBook[]) {
 }
 
 export type ExportRecord = {
-  id: string; originalName: string; proposedName: string; status: "success" | "failed" | "skipped"; reason?: string;
+  id: string; originalName: string; proposedName: string; status: "success" | "failed" | "skipped"; reason?: string; archive?: string;
   file?: string; note?: string; original?: string; sourceSha256?: string; outputSha256?: string;
   title?: string; authors?: string[]; noteSha256?: string;
   publisher?: string; language?: string; identifiers?: string; date?: string; series?: string; reviewStatus?: string; reviewReasons?: string; warnings?: string; informationStatus?: string;
@@ -119,17 +119,19 @@ export type ExportReport = { records: ExportRecord[]; succeeded: number; failed:
 export type ExportProgress = { done: number; total: number; current: string; zipPercent?: number };
 
 export function toExportResultCsv(report: ExportReport): string {
-  const rows = [["书籍ID", "完整书名", "完整作者", "原始文件名", "建议文件名", "结果", "原因", "书籍路径", "笔记路径", "原件路径", "原件SHA256", "输出SHA256", "笔记SHA256", "出版社", "语言", "ISBN/标识", "出版日期", "丛书", "审核状态", "审核原因", "识别提示", "信息状态"]];
-  for (const record of report.records) rows.push([record.id, record.title ?? "", record.authors?.join("; ") ?? "", record.originalName, record.proposedName, { success: "成功", failed: "失败", skipped: "排除" }[record.status], record.reason ?? "", record.file ?? "", record.note ?? "", record.original ?? "", record.sourceSha256 ?? "", record.outputSha256 ?? "", record.noteSha256 ?? "", record.publisher ?? "", record.language ?? "", record.identifiers ?? "", record.date ?? "", record.series ?? "", record.reviewStatus ?? "", record.reviewReasons ?? "", record.warnings ?? "", record.informationStatus ?? ""]);
+  const rows = [["书籍ID", "完整书名", "完整作者", "原始文件名", "建议文件名", "结果", "原因", "书籍路径", "笔记路径", "原件路径", "原件SHA256", "输出SHA256", "笔记SHA256", "出版社", "语言", "ISBN/标识", "出版日期", "丛书", "审核状态", "审核原因", "识别提示", "信息状态", "分包文件"]];
+  for (const record of report.records) rows.push([record.id, record.title ?? "", record.authors?.join("; ") ?? "", record.originalName, record.proposedName, { success: "成功", failed: "失败", skipped: "排除" }[record.status], record.reason ?? "", record.file ?? "", record.note ?? "", record.original ?? "", record.sourceSha256 ?? "", record.outputSha256 ?? "", record.noteSha256 ?? "", record.publisher ?? "", record.language ?? "", record.identifiers ?? "", record.date ?? "", record.series ?? "", record.reviewStatus ?? "", record.reviewReasons ?? "", record.warnings ?? "", record.informationStatus ?? "", record.archive ?? ""]);
   return "\uFEFF" + rows.map(row => row.map(csvCell).join(",")).join("\n");
 }
 
 /** Build the complete package before requesting a browser download; per-book failures stay explicit. */
-export async function buildLibraryZip(books: DerivedBook[], opts: ExportOptions, onProgress?: (progress: ExportProgress) => void, signal?: AbortSignal) {
+export async function buildLibraryZip(books: DerivedBook[], opts: ExportOptions, onProgress?: (progress: ExportProgress) => void, signal?: AbortSignal, preparedEntries?: ExportEntry[], archive?: string) {
   const checkCancelled = () => { if (signal?.aborted) throw new Error("导出已取消，未下载文件"); };
   checkCancelled();
   const plan = createExportPlan(books, opts);
   if (plan.blockers.length) throw new Error(plan.blockers.join("；"));
+  if (!preparedEntries && plan.summary.parts > 1) throw new Error("此批次需要自动分包，请使用导出入口");
+  if (preparedEntries) plan.entries = preparedEntries;
   const zip = new JSZip();
   zip.folder("Library");
   zip.folder("Originals");
@@ -139,7 +141,7 @@ export async function buildLibraryZip(books: DerivedBook[], opts: ExportOptions,
   for (const entry of plan.entries) {
     checkCancelled();
     const { book } = entry;
-    const record: ExportRecord = { id: book.id, title: noteTitle(book), authors: noteAuthors(book), originalName: book.originalName, proposedName: book.proposedName, status: "skipped", reason: entry.skipReason };
+    const record: ExportRecord = { id: book.id, title: noteTitle(book), authors: noteAuthors(book), originalName: book.originalName, proposedName: book.proposedName, status: "skipped", archive, reason: entry.skipReason };
     Object.assign(record, { publisher: book.publisher, language: book.language, identifiers: book.identifiers.join("; "), date: book.date, series: book.series, reviewStatus: isReviewed(book) ? "已人工审核" : needsReview(book) ? "待审核" : "未人工确认", reviewReasons: reviewReasons(book).join("; "), warnings: book.warnings?.join("; ") ?? "", informationStatus: reviewReasons(book).length ? "待补全 / 有异常" : "无已知异常" });
     if (!entry.path) { records.push(record); continue; }
     onProgress?.({ done: records.length, total: plan.entries.length, current: book.originalName });
@@ -196,16 +198,49 @@ export async function buildLibraryZip(books: DerivedBook[], opts: ExportOptions,
     const msg = err instanceof Error ? err.message : String(err);
     if (/array buffer allocation failed|out of memory|oom/i.test(msg)) {
       throw new Error(
-        "导出时内存不足。请取消「ZIP 中保留重复副本」，或勾选较少书籍分批导出。",
+        "导出时内存不足。请取消「ZIP 中保留重复副本」，或关闭其他标签页后重试。",
       );
     }
     throw err;
   }
 }
 
+/** Generate and release one archive at a time, never accumulate the whole library's ZIPs. */
+export async function* buildLibraryParts(books: DerivedBook[], opts: ExportOptions, onProgress?: (progress: ExportProgress) => void, signal?: AbortSignal, limit = MAX_ZIP_BYTES) {
+  const plan = createExportPlan(books, opts);
+  if (plan.blockers.length) throw new Error(plan.blockers.join("；"));
+  const parts = partitionExportEntries(plan.entries, limit);
+  let done = 0;
+  for (let index = 0; index < parts.length; index++) {
+    if (signal?.aborted) throw new Error("导出已取消；已下载的分包仍保留，后续分包未导出");
+    const entries = parts[index]!;
+    const filename = parts.length === 1 ? "folio-library.zip" : `folio-library-part-${String(index + 1).padStart(3, "0")}-of-${String(parts.length).padStart(3, "0")}.zip`;
+    const result = await buildLibraryZip(entries.map(entry => entry.book), opts, progress => onProgress?.({
+      ...progress, done: done + progress.done, total: plan.entries.length,
+      current: `第 ${index + 1}/${parts.length} 包 · ${progress.current}`,
+    }), signal, entries, filename);
+    done += entries.length;
+    yield { ...result, filename };
+  }
+}
+
 export async function downloadLibraryZip(books: DerivedBook[], opts: ExportOptions, onProgress?: (progress: ExportProgress) => void, signal?: AbortSignal) {
-  const result = await buildLibraryZip(books, opts, onProgress, signal);
-  if (signal?.aborted) throw new Error("导出已取消，未下载文件");
-  downloadBlob(result.blob, result.report.failed ? "folio-library-partial.zip" : "folio-library.zip");
-  return result.report;
+  const report: ExportReport = { records: [], succeeded: 0, failed: 0, skipped: 0 };
+  let downloaded = 0;
+  try {
+    for await (const result of buildLibraryParts(books, opts, onProgress, signal)) {
+      if (signal?.aborted) throw new Error("导出已取消");
+      downloadBlob(result.blob, result.filename);
+      downloaded++;
+      report.records.push(...result.report.records);
+      report.succeeded += result.report.succeeded;
+      report.failed += result.report.failed;
+      report.skipped += result.report.skipped;
+      // Give the browser time to handle this download before starting the next archive.
+      await new Promise(resolve => setTimeout(resolve, 0));
+    }
+  } catch (error) {
+    throw new Error(`${error instanceof Error ? error.message : String(error)}；已发起 ${downloaded} 个分包下载，请核对浏览器下载记录。`);
+  }
+  return report;
 }
