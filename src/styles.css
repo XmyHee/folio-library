@@ -791,8 +791,7 @@ tr:last-child td {
   --control-hover: #dce4ed;
   --overlay: #f3f5f7ed;
 }
-.theme-switch { align-self: flex-start; flex-shrink: 0; }
-.theme-switch button { min-width: 4rem; }
+.theme-switch { align-self: flex-start; flex-shrink: 0; width: 2.75rem; min-width: 2.75rem; height: 2.75rem; padding: 0; }
 select { border-color: var(--control-border); }
 .storage-status { margin: .5rem 0 1.5rem; font-size: .8rem; color: var(--muted); }
 .storage-status p { margin: .3rem 0; }

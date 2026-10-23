@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Moon, Sun } from "lucide-react";
 
 type Theme = "dark" | "light";
 const storageKey = "folio.theme";
@@ -12,8 +13,15 @@ export function ThemeSwitch() {
     document.documentElement.dataset.theme = theme;
     try { localStorage.setItem(storageKey, theme); } catch { /* Theme still works without storage. */ }
   }, [theme]);
-  return <div className="seg theme-switch" role="group" aria-label="页面主题">
-    <button type="button" className={theme === "dark" ? "active" : ""} aria-pressed={theme === "dark"} onClick={() => setTheme("dark")}>深空灰</button>
-    <button type="button" className={theme === "light" ? "active" : ""} aria-pressed={theme === "light"} onClick={() => setTheme("light")}>明亮</button>
-  </div>;
+  const label = theme === "dark" ? "切换为明亮主题" : "切换为深空灰主题";
+  const Icon = theme === "dark" ? Sun : Moon;
+  return <button
+    type="button"
+    className="btn btn-secondary theme-switch"
+    aria-label={label}
+    title={label}
+    onClick={() => setTheme(current => current === "dark" ? "light" : "dark")}
+  >
+    <Icon size={20} aria-hidden="true" focusable="false" />
+  </button>;
 }
